@@ -6,10 +6,16 @@
     <title>16-Day Holiday Habit Tracker</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' };</script>
     <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-attachment: fixed; }
+        [hidden] { display: none !important; }
+        :focus-visible { outline: 3px solid #8b5cf6; outline-offset: 3px; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+        }
         
         /* Animated Shifting Color Border */
         @keyframes borderShift {
@@ -28,7 +34,7 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body id="app-body" class="bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700">
+<body id="app-body" class="bg-gradient-to-br from-orange-100 via-violet-200 to-sky-200 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700">
 
     <div class="max-w-4xl mx-auto space-y-6">
         
@@ -58,6 +64,37 @@
             </div>
         </header>
 
+        <section aria-label="Progress overview" class="bg-white/90 dark:bg-slate-900/90 rounded-2xl p-5 shadow-lg border border-white/40 dark:border-slate-800">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="font-bold text-slate-900 dark:text-white">Your progress at a glance</h2>
+                    <p id="today-context" class="text-xs text-slate-500 dark:text-slate-400 mt-1"></p>
+                </div>
+                <button id="today-button" type="button" onclick="goToToday()" class="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">Go to today</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 sm:gap-4">
+                <div class="bg-pink-50 dark:bg-pink-950/30 rounded-xl p-3">
+                    <span id="tasks-completed" class="block text-xl sm:text-2xl font-extrabold text-pink-700 dark:text-pink-300">0</span>
+                    <span class="text-xs text-slate-600 dark:text-slate-300">Tasks completed</span>
+                </div>
+                <div class="bg-violet-50 dark:bg-violet-950/30 rounded-xl p-3">
+                    <span id="best-streak" class="block text-xl sm:text-2xl font-extrabold text-violet-700 dark:text-violet-300">0 days</span>
+                    <span class="text-xs text-slate-600 dark:text-slate-300" title="Your longest run of consecutive fully completed days">Best full-day streak</span>
+                </div>
+                <div class="bg-sky-50 dark:bg-sky-950/30 rounded-xl p-3">
+                    <span id="tasks-remaining" class="block text-xl sm:text-2xl font-extrabold text-sky-700 dark:text-sky-300">0</span>
+                    <span id="remaining-label" class="text-xs text-slate-600 dark:text-slate-300">Left on this day</span>
+                </div>
+            </div>
+        </section>
+
+        <details class="bg-white/90 dark:bg-slate-900/90 rounded-2xl p-5 shadow-lg border border-white/40 dark:border-slate-800">
+            <summary class="cursor-pointer font-bold text-slate-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-500 rounded">Choose your background <span id="background-selection" class="text-sm font-normal text-slate-500 dark:text-slate-400"></span></summary>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mt-3 mb-4">Pick a gradient to make this space yours. Your choice saves automatically.</p>
+            <button type="button" id="background-auto" onclick="selectBackground('auto')" class="mb-4 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-500">Automatic (time of day)</button>
+            <div id="background-options" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3" role="group" aria-label="Background gradients"></div>
+        </details>
+
         <!-- Sticky Day Navigation Tabs -->
         <nav aria-label="Days" class="sticky top-4 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-white/40 dark:border-slate-800 flex gap-2 overflow-x-auto no-scrollbar" id="day-tabs">
             <!-- Dynamically populated via JS -->
@@ -67,6 +104,19 @@
         <main class="bg-white dark:bg-slate-900 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl shifting-border transition-colors duration-500" id="day-content-card">
             <!-- Populated via JS -->
         </main>
+
+        <details class="bg-white/90 dark:bg-slate-900/90 rounded-2xl p-5 shadow-lg border border-white/40 dark:border-slate-800">
+            <summary class="cursor-pointer font-bold text-slate-900 dark:text-white rounded">Back up your progress</summary>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mt-3 mb-4">Save your 16-day progress and background choice to a file. Restore it here or on another device.</p>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="button" onclick="downloadBackup()" class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold">Download backup</button>
+                <label class="min-w-0 max-w-full text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    Restore from backup
+                    <input id="backup-file" type="file" accept=".json,application/json" onchange="restoreBackup(this)" class="block mt-2 max-w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-2 file:font-semibold file:text-slate-800 cursor-pointer">
+                </label>
+            </div>
+            <p id="backup-status" role="status" aria-live="polite" class="mt-3 text-sm text-slate-600 dark:text-slate-300"></p>
+        </details>
     </div>
 
     <!-- Motivational Popup Modal -->
@@ -82,6 +132,9 @@
     <script>
         const TOTAL_DAYS = 16;
         let activeDay = 1;
+        let displayedDate = null;
+        const FOCUS_KEY = 'holiday_habit_tracker_focus';
+        let focusOnly = localStorage.getItem(FOCUS_KEY) === 'true';
         const MYOBRACE_DURATION = 2 * 60 * 60; // 2 hours in seconds
 
         // Generate dates from Sept 27, 2026 to Oct 12, 2026
@@ -102,37 +155,129 @@
             });
         }
 
-        const motivationalQuotes = [
-            "Awesome job! Consistency is the magic key to success! ✨",
-            "Crushing it! Every step forward makes you stronger! 💪",
-            "Incredible work today! Take a moment to feel proud! 🌟",
-            "You are unstoppable! Keep up this amazing momentum! 🚀",
-            "Fantastic dedication! Your future self will thank you! 🎯",
-            "Boom! Another goal conquered with absolute style! 🔥",
-            "Look at you go! Habits built today create champions tomorrow! 👑",
-            "Pure dedication! You're making massive progress step by step! ⭐"
-        ];
+        const goalMessages = {
+            "myobrace": [
+                "Myobrace: 2 hours complete! Well done for sticking with your wear-time goal.",
+                "You completed 2 hours of Myobrace wear! Be proud of your patience and commitment."
+            ],
+            "exam1": [
+                "Exam Questions (Session 1): 50 questions complete! Great focus on your study goal.",
+                "You finished all 50 questions for Exam Questions (Session 1)! Give yourself credit for that effort."
+            ],
+            "exam2": [
+                "Exam Questions (Session 2): 50 questions complete! Great focus on your study goal.",
+                "You finished all 50 questions for Exam Questions (Session 2)! Be proud of your study effort."
+            ],
+            "bendDown": [
+                "Exercise: Bend Down - 20 repetitions complete! Well done for reaching your target.",
+                "All 20 Bend Down repetitions done! Great commitment to your exercise routine."
+            ],
+            "jumpUp": [
+                "Exercise: Jump Up - 40 repetitions complete! Great energy and effort.",
+                "All 40 Jump Up repetitions done! Be proud of reaching your exercise target."
+            ],
+            "run": [
+                "1km Run complete! Every step counted toward your running goal.",
+                "You finished your 1km Run! Well done for making time to move."
+            ],
+            "shineEyes1": [
+                "Shine the Eyes (Session 1) complete! Well done for following through on your routine.",
+                "You checked off Shine the Eyes (Session 1)! Give yourself credit for keeping up this daily habit."
+            ],
+            "shineEyes2": [
+                "Shine the Eyes (Session 2) complete! Well done for following through on your routine.",
+                "You checked off Shine the Eyes (Session 2)! Give yourself credit for keeping up this daily habit."
+            ],
+            "vitamin1": [
+                "Vitamin Tablets (Dose 1) complete! Well done for following through on your routine.",
+                "You checked off Vitamin Tablets (Dose 1)! Give yourself credit for keeping up this daily habit."
+            ],
+            "vitamin2": [
+                "Vitamin Tablets (Dose 2) complete! Well done for following through on your routine.",
+                "You checked off Vitamin Tablets (Dose 2)! Give yourself credit for keeping up this daily habit."
+            ],
+            "brushTeeth1": [
+                "Brush Teeth (Session 1 - Morning) complete! Well done for following through on your routine.",
+                "You checked off Brush Teeth (Session 1 - Morning)! Give yourself credit for keeping up this daily habit."
+            ],
+            "brushTeeth2": [
+                "Brush Teeth (Session 2 - Evening) complete! Well done for following through on your routine.",
+                "You checked off Brush Teeth (Session 2 - Evening)! Give yourself credit for keeping up this daily habit."
+            ],
+            "probiotic1": [
+                "Probiotic (Dose 1) complete! Well done for following through on your routine.",
+                "You checked off Probiotic (Dose 1)! Give yourself credit for keeping up this daily habit."
+            ],
+            "probiotic2": [
+                "Probiotic (Dose 2) complete! Well done for following through on your routine.",
+                "You checked off Probiotic (Dose 2)! Give yourself credit for keeping up this daily habit."
+            ],
+            "flute": [
+                [
+                    "Flute Scale 1 complete! Great work making time to practise your notes and fingering.",
+                    "You practised Flute Scale 1! Be proud of the focus you brought to your notes and fingering."
+                ],
+                [
+                    "Flute Scale 2 complete! Great work making time to practise your steady rhythm and smooth fingering.",
+                    "You practised Flute Scale 2! Be proud of the focus you brought to your steady rhythm and smooth fingering."
+                ],
+                [
+                    "Flute Piece 1 complete! Great work making time to practise your phrasing and expression.",
+                    "You practised Flute Piece 1! Be proud of the focus you brought to your phrasing and expression."
+                ],
+                [
+                    "Flute Piece 2 complete! Great work making time to practise your rhythm and musical expression.",
+                    "You practised Flute Piece 2! Be proud of the focus you brought to your rhythm and musical expression."
+                ],
+                [
+                    "Flute Study 1 complete! Great work making time to practise your flute technique.",
+                    "You practised Flute Study 1! Be proud of the focus you brought to your flute technique."
+                ]
+            ],
+            "piano": [
+                [
+                    "Piano Piece 1 complete! Well done for making time to practise at the keys.",
+                    "You practised Piano Piece 1! Keep building on your work with rhythm and expression."
+                ],
+                [
+                    "Piano Piece 2 complete! Well done for making time to practise at the keys.",
+                    "You practised Piano Piece 2! Keep building on your work with rhythm and expression."
+                ],
+                [
+                    "Piano Piece 3 complete! Well done for making time to practise at the keys.",
+                    "You practised Piano Piece 3! Keep building on your work with rhythm and expression."
+                ],
+                [
+                    "Piano Piece 4 complete! Well done for making time to practise at the keys.",
+                    "You practised Piano Piece 4! Keep building on your work with rhythm and expression."
+                ]
+            ]
+        };
+        const lastGoalQuotes = {};
 
-        let quoteHistory = [];
-
-        function getSmartQuote() {
-            if (quoteHistory.length >= motivationalQuotes.length * 2) {
-                quoteHistory = [];
-            }
-            const availableQuotes = motivationalQuotes.map((q, idx) => ({ q, idx })).filter(item => {
-                const count = quoteHistory.filter(i => i === item.idx).length;
-                return count < 2;
-            });
-            const chosen = availableQuotes[Math.floor(Math.random() * availableQuotes.length)];
-            quoteHistory.push(chosen.idx);
-            return chosen.q;
+        function getSmartQuote(taskKey, index) {
+            const messages = (taskKey === 'flute' || taskKey === 'piano')
+                ? goalMessages[taskKey][index]
+                : goalMessages[taskKey];
+            const key = `${taskKey}:${index ?? ''}`;
+            const choices = messages.filter(message => message !== lastGoalQuotes[key]);
+            const chosen = choices[Math.floor(Math.random() * choices.length)];
+            lastGoalQuotes[key] = chosen;
+            return chosen;
         }
 
         function loadState() {
             const saved = localStorage.getItem('holiday_habit_tracker_v4');
             if (saved) {
                 try {
-                    return JSON.parse(saved);
+                    const state = JSON.parse(saved);
+                    Object.values(state).forEach(day => {
+                        if (!Array.isArray(day.flute)) day.flute = Array(5).fill(day.flute === true);
+                        if (day.myobraceRunning && !Number.isFinite(day.myobraceEndsAt)) {
+                            day.myobraceEndsAt = Date.now() + day.myobraceSecondsLeft * 1000;
+                        }
+                    });
+                    return state;
                 } catch (e) {
                     console.error('Failed to parse saved state', e);
                 }
@@ -143,13 +288,14 @@
                     myobrace: false,
                     myobraceSecondsLeft: MYOBRACE_DURATION,
                     myobraceRunning: false,
+                    myobraceEndsAt: null,
                     myobraceLaps: [],
                     exam1: false,
                     exam2: false,
                     bendDown: false,
                     jumpUp: false,
                     piano: [false, false, false, false],
-                    flute: false,
+                    flute: [false, false, false, false, false],
                     run: false,
                     shineEyes1: false,
                     shineEyes2: false,
@@ -172,23 +318,267 @@
             updateOverallStats();
         }
 
+        const backgroundGradients = [
+            {
+                "id": "peach-sky",
+                "name": "Peach Sky",
+                "colors": [
+                    "#ffedd5",
+                    "#ddd6fe",
+                    "#bae6fd"
+                ],
+                "dark": false
+            },
+            {
+                "id": "rosewater",
+                "name": "Rosewater",
+                "colors": [
+                    "#ffe4e6",
+                    "#fbcfe8",
+                    "#e9d5ff"
+                ],
+                "dark": false
+            },
+            {
+                "id": "ocean-breeze",
+                "name": "Ocean Breeze",
+                "colors": [
+                    "#ccfbf1",
+                    "#a5f3fc",
+                    "#93c5fd"
+                ],
+                "dark": false
+            },
+            {
+                "id": "mint-meadow",
+                "name": "Mint Meadow",
+                "colors": [
+                    "#ecfccb",
+                    "#bbf7d0",
+                    "#99f6e4"
+                ],
+                "dark": false
+            },
+            {
+                "id": "lavender-dream",
+                "name": "Lavender Dream",
+                "colors": [
+                    "#ede9fe",
+                    "#c4b5fd",
+                    "#f5d0fe"
+                ],
+                "dark": false
+            },
+            {
+                "id": "golden-hour",
+                "name": "Golden Hour",
+                "colors": [
+                    "#fef3c7",
+                    "#fed7aa",
+                    "#fda4af"
+                ],
+                "dark": false
+            },
+            {
+                "id": "cotton-candy",
+                "name": "Cotton Candy",
+                "colors": [
+                    "#fbcfe8",
+                    "#ddd6fe",
+                    "#a5f3fc"
+                ],
+                "dark": false
+            },
+            {
+                "id": "coral-coast",
+                "name": "Coral Coast",
+                "colors": [
+                    "#fecaca",
+                    "#fdba74",
+                    "#fef08a"
+                ],
+                "dark": false
+            },
+            {
+                "id": "blue-lagoon",
+                "name": "Blue Lagoon",
+                "colors": [
+                    "#cffafe",
+                    "#67e8f9",
+                    "#60a5fa"
+                ],
+                "dark": false
+            },
+            {
+                "id": "spring-garden",
+                "name": "Spring Garden",
+                "colors": [
+                    "#fef9c3",
+                    "#d9f99d",
+                    "#86efac"
+                ],
+                "dark": false
+            },
+            {
+                "id": "berry-sorbet",
+                "name": "Berry Sorbet",
+                "colors": [
+                    "#f9a8d4",
+                    "#d8b4fe",
+                    "#a5b4fc"
+                ],
+                "dark": false
+            },
+            {
+                "id": "desert-sand",
+                "name": "Desert Sand",
+                "colors": [
+                    "#fef3c7",
+                    "#e7c9a9",
+                    "#d6b4a1"
+                ],
+                "dark": false
+            },
+            {
+                "id": "arctic-mist",
+                "name": "Arctic Mist",
+                "colors": [
+                    "#f1f5f9",
+                    "#cbd5e1",
+                    "#bae6fd"
+                ],
+                "dark": false
+            },
+            {
+                "id": "tropical-sunset",
+                "name": "Tropical Sunset",
+                "colors": [
+                    "#fb923c",
+                    "#f472b6",
+                    "#a78bfa"
+                ],
+                "dark": false
+            },
+            {
+                "id": "aurora",
+                "name": "Aurora",
+                "colors": [
+                    "#065f46",
+                    "#0e7490",
+                    "#5b21b6"
+                ],
+                "dark": true
+            },
+            {
+                "id": "midnight-purple",
+                "name": "Midnight Purple",
+                "colors": [
+                    "#020617",
+                    "#1e1b4b",
+                    "#581c87"
+                ],
+                "dark": true
+            },
+            {
+                "id": "deep-ocean",
+                "name": "Deep Ocean",
+                "colors": [
+                    "#0f172a",
+                    "#164e63",
+                    "#1e3a8a"
+                ],
+                "dark": true
+            },
+            {
+                "id": "enchanted-forest",
+                "name": "Enchanted Forest",
+                "colors": [
+                    "#052e16",
+                    "#064e3b",
+                    "#134e4a"
+                ],
+                "dark": true
+            },
+            {
+                "id": "plum-velvet",
+                "name": "Plum Velvet",
+                "colors": [
+                    "#2e1065",
+                    "#701a75",
+                    "#831843"
+                ],
+                "dark": true
+            },
+            {
+                "id": "starry-night",
+                "name": "Starry Night",
+                "colors": [
+                    "#0f172a",
+                    "#312e81",
+                    "#4c1d95"
+                ],
+                "dark": true
+            }
+        ];
+        const BACKGROUND_KEY = 'holiday_habit_tracker_background';
+        let selectedBackground = localStorage.getItem(BACKGROUND_KEY) || 'auto';
+        if (!backgroundGradients.some(item => item.id === selectedBackground)) selectedBackground = 'auto';
+
+        function gradientStyle(item) {
+            return `linear-gradient(135deg, ${item.colors.join(', ')})`;
+        }
+
+        function renderBackgroundOptions() {
+            document.getElementById('background-options').innerHTML = backgroundGradients.map(item => `
+                <button type="button" onclick="selectBackground('${item.id}')" aria-pressed="${selectedBackground === item.id}"
+                    class="p-2 rounded-xl border-2 ${selectedBackground === item.id ? 'border-purple-600 dark:border-purple-300' : 'border-transparent'} bg-white dark:bg-slate-800 text-slate-900 dark:text-white hover:border-purple-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-500 transition">
+                    <span aria-hidden="true" class="block h-14 rounded-lg border border-black/10" style="background: ${gradientStyle(item)}"></span>
+                    <span class="block mt-2 text-xs font-semibold">${item.name}${selectedBackground === item.id ? ' (Selected)' : ''}</span>
+                </button>
+            `).join('');
+            document.getElementById('background-auto').setAttribute('aria-pressed', String(selectedBackground === 'auto'));
+            const selected = backgroundGradients.find(item => item.id === selectedBackground);
+            document.getElementById('background-selection').innerText = `- ${selected ? selected.name : 'Automatic'}`;
+        }
+
+        function selectBackground(id) {
+            if (id !== 'auto' && !backgroundGradients.some(item => item.id === id)) return;
+            selectedBackground = id;
+            localStorage.setItem(BACKGROUND_KEY, id);
+            applyTimeTheme();
+            renderBackgroundOptions();
+        }
+
         function applyTimeTheme() {
+            applyAutomaticTheme();
+            const body = document.getElementById('app-body');
+            const selected = backgroundGradients.find(item => item.id === selectedBackground);
+            body.style.backgroundImage = selected ? gradientStyle(selected) : '';
+            if (selected) {
+                body.classList.toggle('dark', selected.dark);
+                body.classList.toggle('text-white', selected.dark);
+                body.classList.toggle('text-slate-900', !selected.dark);
+                document.getElementById('theme-badge').innerText = selected.name;
+            }
+        }
+
+        function applyAutomaticTheme() {
             const hour = new Date().getHours();
             const body = document.getElementById('app-body');
             const badge = document.getElementById('theme-badge');
 
             if (hour >= 5 && hour < 12) {
-                body.className = "bg-gradient-to-br from-amber-300 via-orange-400 to-pink-500 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
-                badge.innerText = "🌅 Morning Bright";
+                body.className = "bg-gradient-to-br from-amber-100 via-rose-200 to-violet-200 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
+                badge.innerText = "Morning Bright";
             } else if (hour >= 12 && hour < 18) {
-                body.className = "bg-gradient-to-br from-sky-400 via-indigo-500 to-purple-600 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
-                badge.innerText = "☀️ Midday Flow";
+                body.className = "bg-gradient-to-br from-orange-100 via-violet-200 to-sky-200 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
+                badge.innerText = "Midday Flow";
             } else if (hour >= 18 && hour < 21) {
-                body.className = "bg-gradient-to-br from-purple-500 via-pink-500 to-rose-600 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
+                body.className = "bg-gradient-to-br from-orange-200 via-pink-200 to-violet-300 min-h-full text-slate-900 antialiased p-4 sm:p-8 transition-colors duration-700";
                 badge.innerText = "Sunset Glow";
             } else {
-                body.className = "bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 min-h-full text-white antialiased p-4 sm:p-8 transition-colors duration-700 dark";
-                badge.innerText = "🌙 Night Serenity";
+                body.className = "bg-gradient-to-br from-slate-950 via-indigo-950 to-purple-900 min-h-full text-white antialiased p-4 sm:p-8 transition-colors duration-700 dark";
+                badge.innerText = "Night Serenity";
             }
         }
 
@@ -230,7 +620,7 @@
             const includeExams = !calInfo.isWeekend;
             
             let completed = 0;
-            let total = includeExams ? 19 : 17; // 19 on weekdays, 17 on weekends
+            let total = includeExams ? 23 : 21; // Each flute task counts separately
 
             if (dayData.myobrace) completed++;
             if (includeExams) {
@@ -240,7 +630,7 @@
             if (dayData.bendDown) completed++;
             if (dayData.jumpUp) completed++;
             dayData.piano.forEach(p => { if (p) completed++; });
-            if (dayData.flute) completed++;
+            dayData.flute.forEach(done => { if (done) completed++; });
             if (dayData.run) completed++;
             if (dayData.shineEyes1) completed++;
             if (dayData.shineEyes2) completed++;
@@ -259,20 +649,91 @@
             let totalCompletedAll = 0;
             let totalPossibleAll = 0;
             let fullyCompletedDays = 0;
+            let streak = 0;
+            let bestStreak = 0;
 
             for (let i = 1; i <= TOTAL_DAYS; i++) {
                 const stats = getDayCompletion(i);
                 totalCompletedAll += stats.completed;
                 totalPossibleAll += stats.total;
-                if (stats.percentage === 100) fullyCompletedDays++;
+                if (stats.completed === stats.total) {
+                    fullyCompletedDays++;
+                    streak++;
+                    bestStreak = Math.max(bestStreak, streak);
+                } else {
+                    streak = 0;
+                }
             }
 
             const overallPct = totalPossibleAll > 0 ? Math.round((totalCompletedAll / totalPossibleAll) * 100) : 0;
             document.getElementById('overall-percentage').innerText = overallPct + '%';
             document.getElementById('days-completed').innerText = fullyCompletedDays + '/' + TOTAL_DAYS;
+            document.getElementById('tasks-completed').innerText = totalCompletedAll;
+            document.getElementById('best-streak').innerText = `${bestStreak} ${bestStreak === 1 ? 'day' : 'days'}`;
+            const activeStats = getDayCompletion(activeDay);
+            document.getElementById('tasks-remaining').innerText = activeStats.total - activeStats.completed;
+            document.getElementById('remaining-label').innerText = `Left on Day ${activeDay}`;
+        }
+
+        function getTodayDay(now = new Date()) {
+            const today = calendarDays.find(day => day.dateObj.toDateString() === now.toDateString());
+            return today ? today.dayNum : null;
+        }
+
+        function updateTodayShortcut() {
+            displayedDate = new Date().toDateString();
+            const today = getTodayDay();
+            const button = document.getElementById('today-button');
+            button.disabled = today === null;
+            document.getElementById('today-context').innerText = today
+                ? `Today is Day ${today} (${calendarDays[today - 1].label})`
+                : new Date() < startDate
+                    ? 'Your challenge starts on September 27, 2026.'
+                    : 'Your challenge ended on October 12, 2026. You can still review every day.';
+        }
+
+        function selectDay(day) {
+            if (!Number.isInteger(day) || day < 1 || day > TOTAL_DAYS) return;
+            syncMyobraceTimers();
+            activeDay = day;
+            renderTabs();
+            renderDayContent();
+            document.querySelector('#day-tabs [aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+        }
+
+        function goToToday() {
+            updateTodayShortcut();
+            const today = getTodayDay();
+            if (today !== null) selectDay(today);
+        }
+
+        function setFocusView(enabled) {
+            focusOnly = enabled;
+            localStorage.setItem(FOCUS_KEY, String(enabled));
+            document.getElementById('focus-toggle').checked = enabled;
+            applyFocusView();
+        }
+
+        function applyFocusView() {
+            const grid = document.getElementById('task-grid');
+            if (!grid) return;
+            Array.from(grid.children).forEach(card => {
+                const checkboxes = Array.from(card.querySelectorAll('input[type="checkbox"]'));
+                card.hidden = focusOnly && (checkboxes.length === 0 || checkboxes.every(input => input.checked));
+                checkboxes.forEach(input => {
+                    const label = input.closest('label');
+                    if (label && label !== card) label.hidden = focusOnly && input.checked;
+                });
+            });
+            const stats = getDayCompletion(activeDay);
+            document.getElementById('focus-empty').hidden = !(focusOnly && stats.completed === stats.total);
+            document.getElementById('focus-description').innerText = focusOnly
+                ? `${stats.total - stats.completed} tasks left. Completed tasks are hidden.`
+                : 'Showing all tasks. Turn on focus view to hide completed tasks.';
         }
 
         function renderTabs() {
+            updateTodayShortcut();
             const tabsContainer = document.getElementById('day-tabs');
             tabsContainer.innerHTML = '';
 
@@ -283,6 +744,9 @@
                 const isComplete = stats.percentage === 100;
 
                 const tab = document.createElement('button');
+                tab.type = 'button';
+                if (isActive) tab.setAttribute('aria-current', 'page');
+                tab.setAttribute('aria-label', `Day ${i}, ${cal.label}${getTodayDay() === i ? ', today' : ''}, ${stats.completed} of ${stats.total} tasks complete`);
                 tab.className = `flex-shrink-0 px-4 py-3 rounded-2xl font-bold text-sm transition flex flex-col items-center gap-1 border cursor-pointer ${
                     isActive 
                         ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white border-transparent shadow-lg shadow-purple-500/30 scale-105' 
@@ -294,21 +758,14 @@
                 tab.innerHTML = `
                     <div class="flex items-center gap-1.5 whitespace-nowrap">
                         <span>Day ${i} <span class="text-xs opacity-75">(${cal.label})</span></span>
+                        ${getTodayDay() === i ? '<span class="text-xs">Today</span>' : ''}
                         ${isComplete ? '<span class="text-xs">✓</span>' : ''}
                     </div>
                     <div class="w-16 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
                         <div class="bg-current h-full rounded-full transition-all" style="width: ${stats.percentage}%"></div>
                     </div>
                 `;
-                tab.onclick = () => {
-                    if (activeDay !== i) {
-                        stopMyobraceTimer();
-                        activeDay = i;
-                        renderTabs();
-                        renderDayContent();
-                        checkAndManageTimerState();
-                    }
-                };
+                tab.onclick = () => selectDay(i);
                 tabsContainer.appendChild(tab);
             });
         }
@@ -347,7 +804,19 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-5 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
+                    <label class="flex items-center gap-3 font-semibold text-sm text-slate-900 dark:text-white cursor-pointer">
+                        <input id="focus-toggle" type="checkbox" ${focusOnly ? 'checked' : ''} onchange="setFocusView(this.checked)" aria-describedby="focus-description" class="w-5 h-5 accent-purple-600 rounded">
+                        Focus view
+                    </label>
+                    <span id="focus-description" role="status" class="text-xs text-slate-500 dark:text-slate-400"></span>
+                </div>
+                <div id="focus-empty" hidden class="text-center rounded-2xl p-8 mb-5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200">
+                    <h3 class="text-xl font-extrabold mb-2">All done for Day ${activeDay}!</h3>
+                    <p class="text-sm mb-4">Every task is complete. Take a moment to enjoy your progress.</p>
+                    <button type="button" onclick="setFocusView(false)" class="rounded-xl border border-emerald-400 px-4 py-2 text-sm font-bold">Show completed tasks</button>
+                </div>
+                <div id="task-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <!-- Myobrace Interactive Timer Card -->
                     <div class="md:col-span-2 p-6 sm:p-8 rounded-3xl border ${dayData.myobrace ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-900' : 'bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 text-white border-transparent'} shadow-xl transition-all">
@@ -456,14 +925,18 @@
                     </label>
 
                     <!-- Flute Practice -->
-                    <label class="flex items-center gap-4 p-5 rounded-2xl border ${dayData.flute ? 'bg-pink-50/60 dark:bg-pink-950/30 border-pink-300 dark:border-pink-900' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-pink-300'} transition cursor-pointer shadow-sm">
-                        <input type="checkbox" ${dayData.flute ? 'checked' : ''} onchange="toggleTask('flute')" class="w-5 h-5 text-pink-600 rounded focus:ring-pink-500 cursor-pointer flex-shrink-0">
-                        <div class="flex-1">
-                            <span class="font-bold text-slate-900 dark:text-white block">Flute Practice</span>
-                            <span class="text-xs text-slate-500 dark:text-slate-400 block mt-0.5">Daily practice session</span>
+                    <div class="p-5 rounded-2xl border bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 shadow-sm">
+                        <span class="font-bold text-slate-900 dark:text-white block mb-1">Flute Practice</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 block mb-3">Check off each scale, piece, and study</span>
+                        <div class="grid grid-cols-2 gap-3">
+                            ${['Scale 1', 'Scale 2', 'Piece 1', 'Piece 2', 'Study 1'].map((label, idx) => `
+                                <label class="flex items-center gap-3 p-3 rounded-xl border ${dayData.flute[idx] ? 'bg-purple-100 dark:bg-purple-950/60 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'} cursor-pointer transition">
+                                    <input type="checkbox" ${dayData.flute[idx] ? 'checked' : ''} onchange="toggleFlute(${idx})" class="w-5 h-5 text-purple-600 rounded cursor-pointer flex-shrink-0">
+                                    <span class="text-xs font-bold">${label}</span>
+                                </label>
+                            `).join('')}
                         </div>
-                        <span class="text-xs font-bold px-3 py-1.5 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl h-fit">Music</span>
-                    </label>
+                    </div>
 
                     <!-- Shine the Eyes (x2) -->
                     <div class="p-5 rounded-2xl border bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
@@ -555,36 +1028,43 @@
 
                 </div>
             `;
+            applyFocusView();
+            updateOverallStats();
             checkAndManageTimerState();
         }
 
+        // Calculate elapsed time from a persisted deadline, even after browser suspension.
+        function syncMyobraceTimers() {
+            if (displayedDate !== new Date().toDateString()) renderTabs();
+            const now = Date.now();
+            const completedDays = [];
+            let changed = false;
+            Object.entries(trackerState).forEach(([day, data]) => {
+                if (!data.myobraceRunning) return;
+                const remaining = Math.max(0, Math.ceil((data.myobraceEndsAt - now) / 1000));
+                if (remaining !== data.myobraceSecondsLeft) changed = true;
+                data.myobraceSecondsLeft = remaining;
+                if (remaining === 0) {
+                    data.myobraceRunning = false;
+                    data.myobraceEndsAt = null;
+                    data.myobrace = true;
+                    completedDays.push(day);
+                    changed = true;
+                }
+            });
+            if (changed) saveState();
+            const display = document.getElementById('timer-display');
+            if (display) display.innerText = formatTime(trackerState[activeDay].myobraceSecondsLeft);
+            if (completedDays.length) {
+                renderTabs();
+                renderDayContent();
+                showModal('Myobrace Completed!', `2 hours complete for day ${completedDays.join(', ')}. Fantastic job!`, true);
+            }
+        }
+
         function checkAndManageTimerState() {
-            const dayData = trackerState[activeDay];
-            if (dayData.myobraceRunning) {
-                if (!globalTimerInterval) {
-                    globalTimerInterval = setInterval(() => {
-                        if (trackerState[activeDay].myobraceSecondsLeft > 0) {
-                            trackerState[activeDay].myobraceSecondsLeft--;
-                            saveState();
-                            const display = document.getElementById('timer-display');
-                            if (display) display.innerText = formatTime(trackerState[activeDay].myobraceSecondsLeft);
-                        } else {
-                            trackerState[activeDay].myobraceRunning = false;
-                            trackerState[activeDay].myobrace = true;
-                            clearInterval(globalTimerInterval);
-                            globalTimerInterval = null;
-                            saveState();
-                            renderTabs();
-                            renderDayContent();
-                            showModal("Myobrace Completed! 🎉", "Fantastic job! Your 2 hours of Myobrace wear time is fully complete.", true);
-                        }
-                    }, 1000);
-                }
-            } else {
-                if (globalTimerInterval) {
-                    clearInterval(globalTimerInterval);
-                    globalTimerInterval = null;
-                }
+            if (!globalTimerInterval) {
+                globalTimerInterval = setInterval(syncMyobraceTimers, 1000);
             }
         }
 
@@ -592,6 +1072,7 @@
             const dayData = trackerState[activeDay];
             if (dayData.myobrace) return;
             if (!dayData.myobraceRunning) {
+                dayData.myobraceEndsAt = Date.now() + dayData.myobraceSecondsLeft * 1000;
                 dayData.myobraceRunning = true;
                 saveState();
                 renderDayContent();
@@ -599,19 +1080,18 @@
         }
 
         function stopMyobraceTimer() {
+            syncMyobraceTimers();
             const dayData = trackerState[activeDay];
             if (dayData.myobraceRunning) {
                 dayData.myobraceRunning = false;
-                if (globalTimerInterval) {
-                    clearInterval(globalTimerInterval);
-                    globalTimerInterval = null;
-                }
+                dayData.myobraceEndsAt = null;
                 saveState();
                 renderDayContent();
             }
         }
 
         function lapMyobraceTimer() {
+            syncMyobraceTimers();
             const dayData = trackerState[activeDay];
             const elapsed = MYOBRACE_DURATION - dayData.myobraceSecondsLeft;
             dayData.myobraceLaps.push(elapsed);
@@ -631,12 +1111,13 @@
         }
 
         function toggleMyobraceManual() {
+            stopMyobraceTimer();
             const dayData = trackerState[activeDay];
             dayData.myobrace = !dayData.myobrace;
             if (dayData.myobrace) {
                 stopMyobraceTimer();
                 dayData.myobraceSecondsLeft = 0;
-                showModal("Goal Reached! 🌟", getSmartQuote(), true);
+                showModal("Goal Reached! 🌟", getSmartQuote('myobrace'), true);
             } else {
                 dayData.myobraceSecondsLeft = MYOBRACE_DURATION;
             }
@@ -649,7 +1130,7 @@
             trackerState[activeDay][taskKey] = !trackerState[activeDay][taskKey];
             saveState();
             if (trackerState[activeDay][taskKey]) {
-                showModal("Goal Reached! 🌟", getSmartQuote(), true);
+                showModal("Goal Reached! 🌟", getSmartQuote(taskKey), true);
             }
             renderTabs();
             renderDayContent();
@@ -659,7 +1140,17 @@
             trackerState[activeDay][taskKey] = !trackerState[activeDay][taskKey];
             saveState();
             if (trackerState[activeDay][taskKey]) {
-                showModal("Goal Reached! 🌟", getSmartQuote(), true);
+                showModal("Goal Reached! 🌟", getSmartQuote(taskKey), true);
+            }
+            renderTabs();
+            renderDayContent();
+        }
+
+        function toggleFlute(index) {
+            trackerState[activeDay].flute[index] = !trackerState[activeDay].flute[index];
+            saveState();
+            if (trackerState[activeDay].flute[index]) {
+                showModal("Goal Reached! 🌟", getSmartQuote('flute', index), true);
             }
             renderTabs();
             renderDayContent();
@@ -669,18 +1160,31 @@
             trackerState[activeDay].piano[index] = !trackerState[activeDay].piano[index];
             saveState();
             if (trackerState[activeDay].piano[index]) {
-                showModal("Goal Reached! 🌟", getSmartQuote(), true);
+                showModal("Goal Reached! 🌟", getSmartQuote('piano', index), true);
             }
             renderTabs();
             renderDayContent();
         }
 
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                syncMyobraceTimers();
+                updateTodayShortcut();
+            }
+        });
+        window.addEventListener('pageshow', syncMyobraceTimers);
+
         window.onload = function() {
+            activeDay = getTodayDay() ?? (new Date() < startDate ? 1 : TOTAL_DAYS);
+            syncMyobraceTimers();
+            saveState();
             applyTimeTheme();
+            renderBackgroundOptions();
             renderTabs();
             renderDayContent();
             updateOverallStats();
         };
     </script>
+    <script src="tracker-backup.js"></script>
 </body>
 </html>
