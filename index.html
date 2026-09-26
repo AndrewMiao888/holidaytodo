@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>10-Day Holiday Habit Tracker</title>
+    <title>10-Day Holiday Habit/title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
@@ -61,13 +61,20 @@
     </div>
 
     <script>
-        // Data structure for the 10 days
         const TOTAL_DAYS = 10;
         let activeDay = 1;
+        const MYOBRACE_DURATION = 2 * 60 * 60; // 2 hours in seconds
 
-        // Load state from localStorage or initialize fresh state
+        const motivationalQuotes = [
+            "Awesome job! Consistency is the magic key to success! ",
+            "Crushing it! Every step forward makes you stronger! ",
+            "Incredible work today! Take a moment to feel proud! ",
+            "You are unstoppable! Keep up this amazing momentum! ",
+            "Fantastic dedication! Your future self will thank you! "
+        ];
+
         function loadState() {
-            const saved = localStorage.getItem('holiday_tracker_state');
+            const saved = localStorage.getItem('holiday_tracker_state_v2');
             if (saved) {
                 try {
                     return JSON.parse(saved);
@@ -75,31 +82,41 @@
                     console.error('Failed to parse saved state', e);
                 }
             }
-            // Default fresh state structure
             const initialState = {};
             for (let i = 1; i <= TOTAL_DAYS; i++) {
                 initialState[i] = {
                     myobrace: false,
+                    myobraceSecondsLeft: MYOBRACE_DURATION,
+                    myobraceRunning: false,
+                    myobraceLaps: [],
                     exam1: false,
                     exam2: false,
                     bendDown: false,
                     jumpUp: false,
                     piano: [false, false, false, false],
                     flute: false,
-                    run: false
+                    run: false,
+                    shineEyes1: false,
+                    shineEyes2: false,
+                    vitamin1: false,
+                    vitamin2: false,
+                    brushTeeth1: false,
+                    brushTeeth2: false,
+                    probiotic1: false,
+                    probiotic2: false
                 };
             }
             return initialState;
         }
 
         let trackerState = loadState();
+        let globalTimerInterval = null;
 
         function saveState() {
-            localStorage.setItem('holiday_tracker_state', JSON.stringify(trackerState));
+            localStorage.setItem('holiday_tracker_state_v2', JSON.stringify(trackerState));
             updateOverallStats();
         }
 
-        // Custom modal alerts instead of alert()
         function showModal(title, message, isSuccess = false) {
             document.getElementById('modal-title').innerText = title;
             document.getElementById('modal-message').innerText = message;
@@ -120,7 +137,8 @@
 
         function resetAllData() {
             if (confirm("Are you sure you want to reset all progress across all 10 days?")) {
-                localStorage.removeItem('holiday_tracker_state');
+                stopMyobraceTimer();
+                localStorage.removeItem('holiday_tracker_state_v2');
                 trackerState = loadState();
                 renderTabs();
                 renderDayContent();
@@ -129,24 +147,29 @@
             }
         }
 
-        // Calculate statistics
         function getDayCompletion(dayNum) {
             const day = trackerState[dayNum];
             let completed = 0;
-            let total = 9; // 1(myobrace) + 1(exam1) + 1(exam2) + 1(bend) + 1(jump) + 4(piano) + 1(flute) + 1(run) = 11 items? Let's count accurately:
-            // Myobrace(1), Exam1(1), Exam2(1), Bend(1), Jump(1), Piano(4), Flute(1), Run(1) => 1 + 1 + 1 + 1 + 1 + 4 + 1 + 1 = 11 total checkable items per day.
-            let countTotal = 11;
-            
+            let total = 19; // 1(myo) + 2(exam) + 1(bend) + 1(jump) + 4(piano) + 1(flute) + 1(run) + 2(shine) + 2(vitamins) + 2(teeth) + 2(probiotic) = 19 items
+
             if (day.myobrace) completed++;
             if (day.exam1) completed++;
             if (day.exam2) completed++;
             if (day.bendDown) completed++;
             if (day.jumpUp) completed++;
-            day.pianoforEach = day.piano.forEach(p => { if (p) completed++; });
+            day.piano.forEach(p => { if (p) completed++; });
             if (day.flute) completed++;
             if (day.run) completed++;
+            if (day.shineEyes1) completed++;
+            if (day.shineEyes2) completed++;
+            if (day.vitamin1) completed++;
+            if (day.vitamin2) completed++;
+            if (day.brushTeeth1) completed++;
+            if (day.brushTeeth2) completed++;
+            if (day.probiotic1) completed++;
+            if (day.probiotic2) completed++;
 
-            return { completed, total: countTotal, percentage: Math.round((completed / countTotal) * 100) };
+            return { completed, total, percentage: Math.round((completed / total) * 100) };
         }
 
         function updateOverallStats() {
@@ -166,7 +189,6 @@
             document.getElementById('days-completed').innerText = fullyCompletedDays + '/' + TOTAL_DAYS;
         }
 
-        // Render Day Navigation Tabs
         function renderTabs() {
             const tabsContainer = document.getElementById('day-tabs');
             tabsContainer.innerHTML = '';
@@ -195,15 +217,25 @@
                     </div>
                 `;
                 tab.onclick = () => {
-                    activeDay = i;
-                    renderTabs();
-                    renderDayContent();
+                    if (activeDay !== i) {
+                        stopMyobraceTimer();
+                        activeDay = i;
+                        renderTabs();
+                        renderDayContent();
+                        checkAndManageTimerState();
+                    }
                 };
                 tabsContainer.appendChild(tab);
             }
         }
 
-        // Render Day Content
+        function formatTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
         function renderDayContent() {
             const card = document.getElementById('day-content-card');
             const dayData = trackerState[activeDay];
@@ -223,7 +255,7 @@
                             <span>Progress</span>
                             <span>${stats.completed}/${stats.total} (${stats.percentage}%)</span>
                         </div>
-                        <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div class="full bg-slate-200 rounded-full h-2.5 overflow-hidden">
                             <div class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-300" style="width: ${stats.percentage}%"></div>
                         </div>
                     </div>
@@ -231,15 +263,49 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
-                    <!-- Myobrace -->
-                    <label class="flex items-start gap-4 p-4 rounded-2xl border ${dayData.myobrace ? 'bg-indigo-50/50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} transition cursor-pointer shadow-sm">
-                        <input type="checkbox" ${dayData.myobrace ? 'checked' : ''} onchange="toggleTask('myobrace')" class="mt-1 w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
-                        <div class="flex-1">
-                            <span class="font-semibold text-slate-800 block">Myobrace</span>
-                            <span class="text-xs text-slate-500 block mt-0.5">2 hours total wear time</span>
+                    <!-- Myobrace Interactive Timer Card -->
+                    <div class="md:col-span-2 p-6 rounded-3xl border ${dayData.myobrace ? 'bg-indigo-50/60 border-indigo-200' : 'bg-gradient-to-br from-indigo-900 to-slate-900 text-white border-transparent'} shadow-xl transition">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                            <div>
+                                <span class="text-xs font-semibold px-3 py-1 bg-indigo-500/30 text-indigo-300 rounded-full uppercase tracking-wider">Dental Timer</span>
+                                <h3 class="text-xl font-bold mt-1 ${dayData.myobrace ? 'text-slate-800' : 'text-white'}">Myobrace (2 Hours)</h3>
+                                <p class="text-xs ${dayData.myobrace ? 'text-slate-500' : 'text-indigo-200'} mt-0.5">Timer saves automatically and completes when finished.</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span id="timer-display" class="font-mono text-3xl font-bold tracking-wider ${dayData.myobrace ? 'text-indigo-600' : 'text-amber-300'}">
+                                    ${formatTime(dayData.myobraceSecondsLeft)}
+                                </span>
+                            </div>
                         </div>
-                        <span class="text-xs font-medium px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-xl h-fit">Dental</span>
-                    </label>
+
+                        <div class="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t ${dayData.myobrace ? 'border-indigo-100' : 'border-indigo-800/60'}">
+                            <button onclick="startMyobraceTimer()" id="btn-start" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-md cursor-pointer ${dayData.myobraceRunning ? 'opacity-50 cursor-not-allowed' : ''}">
+                                Start Timer
+                            </button>
+                            <button onclick="stopMyobraceTimer()" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-md cursor-pointer">
+                                Stop
+                            </button>
+                            <button onclick="lapMyobraceTimer()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-md cursor-pointer">
+                                Lap
+                            </button>
+                            <button onclick="cancelMyobraceTimer()" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-md cursor-pointer">
+                                Cancel / Reset
+                            </button>
+                            <label class="ml-auto flex items-center gap-2 cursor-pointer bg-white/10 px-3 py-2 rounded-xl">
+                                <input type="checkbox" ${dayData.myobrace ? 'checked' : ''} onchange="toggleMyobraceManual()" class="w-4 h-4 text-indigo-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium ${dayData.myobrace ? 'text-slate-700' : 'text-white'}">Mark Complete</span>
+                            </label>
+                        </div>
+
+                        <!-- Laps display -->
+                        <div id="laps-container" class="mt-4 flex flex-wrap gap-2">
+                            ${dayData.myobraceLaps.map((lapTime, idx) => `
+                                <span class="text-xs font-mono bg-indigo-500/20 text-indigo-200 px-3 py-1 rounded-lg border border-indigo-400/30">
+                                    Lap ${idx + 1}: ${formatTime(lapTime)}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
 
                     <!-- Exam Questions Session 1 -->
                     <label class="flex items-start gap-4 p-4 rounded-2xl border ${dayData.exam1 ? 'bg-indigo-50/50 border-indigo-200' : 'bg-white border-slate-200 hover:border-slate-300'} transition cursor-pointer shadow-sm">
@@ -301,16 +367,88 @@
                         <span class="text-xs font-medium px-2.5 py-1 bg-purple-100 text-purple-700 rounded-xl h-fit">Music</span>
                     </label>
 
-                    <!-- Piano Pieces (4 checkboxes) -->
+                    <!-- Shine the Eyes (x2) -->
                     <div class="p-4 rounded-2xl border bg-white border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <span class="font-semibold text-slate-800 block mb-1">Shine the Eyes (x2)</span>
+                            <span class="text-xs text-slate-500 block mb-3">Check off each session</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.shineEyes1 ? 'bg-teal-50 border-teal-200 text-teal-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.shineEyes1 ? 'checked' : ''} onchange="toggleSubTask('shineEyes1')" class="w-4 h-4 text-teal-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Session 1</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.shineEyes2 ? 'bg-teal-50 border-teal-200 text-teal-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.shineEyes2 ? 'checked' : ''} onchange="toggleSubTask('shineEyes2')" class="w-4 h-4 text-teal-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Session 2</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vitamin Tablets (x2) -->
+                    <div class="p-4 rounded-2xl border bg-white border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <span class="font-semibold text-slate-800 block mb-1">Vitamin Tablets (x2)</span>
+                            <span class="text-xs text-slate-500 block mb-3">Check off each dose</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.vitamin1 ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.vitamin1 ? 'checked' : ''} onchange="toggleSubTask('vitamin1')" class="w-4 h-4 text-sky-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Dose 1</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.vitamin2 ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.vitamin2 ? 'checked' : ''} onchange="toggleSubTask('vitamin2')" class="w-4 h-4 text-sky-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Dose 2</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Brush Teeth (x2) -->
+                    <div class="p-4 rounded-2xl border bg-white border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <span class="font-semibold text-slate-800 block mb-1">Brush Teeth (x2)</span>
+                            <span class="text-xs text-slate-500 block mb-3">Morning & Evening</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.brushTeeth1 ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.brushTeeth1 ? 'checked' : ''} onchange="toggleSubTask('brushTeeth1')" class="w-4 h-4 text-blue-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Session 1</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.brushTeeth2 ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.brushTeeth2 ? 'checked' : ''} onchange="toggleSubTask('brushTeeth2')" class="w-4 h-4 text-blue-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Session 2</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Probiotic (x2) -->
+                    <div class="p-4 rounded-2xl border bg-white border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <span class="font-semibold text-slate-800 block mb-1">Probiotic (x2)</span>
+                            <span class="text-xs text-slate-500 block mb-3">Check off each dose</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.probiotic1 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.probiotic1 ? 'checked' : ''} onchange="toggleSubTask('probiotic1')" class="w-4 h-4 text-emerald-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Dose 1</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${dayData.probiotic2 ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
+                                <input type="checkbox" ${dayData.probiotic2 ? 'checked' : ''} onchange="toggleSubTask('probiotic2')" class="w-4 h-4 text-emerald-600 rounded cursor-pointer">
+                                <span class="text-xs font-medium">Dose 2</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Piano Pieces (4 checkboxes) -->
+                    <div class="md:col-span-2 p-4 rounded-2xl border bg-white border-slate-200 shadow-sm flex flex-col justify-between">
                         <div>
                             <span class="font-semibold text-slate-800 block mb-1">Piano Practice (4 Pieces)</span>
                             <span class="text-xs text-slate-500 block mb-3">Check off each piece as you practice it</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             ${dayData.piano.map((checked, idx) => `
                                 <label class="flex items-center gap-2.5 p-2.5 rounded-xl border ${checked ? 'bg-purple-50 border-purple-200 text-purple-900' : 'bg-slate-50 border-slate-200 text-slate-700'} cursor-pointer transition">
-                                    <input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePiano(${idx})" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer">
+                                    <input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePiano(${idx})" class="w-4 h-4 text-purple-600 rounded cursor-pointer">
                                     <span class="text-xs font-medium">Piece ${idx + 1}</span>
                                 </label>
                             `).join('')}
@@ -319,25 +457,129 @@
 
                 </div>
             `;
+            checkAndManageTimerState();
         }
 
-        // Toggle simple tasks
+        function checkAndManageTimerState() {
+            const dayData = trackerState[activeDay];
+            if (dayData.myobraceRunning) {
+                if (!globalTimerInterval) {
+                    globalTimerInterval = setInterval(() => {
+                        if (trackerState[activeDay].myobraceSecondsLeft > 0) {
+                            trackerState[activeDay].myobraceSecondsLeft--;
+                            saveState();
+                            const display = document.getElementById('timer-display');
+                            if (display) display.innerText = formatTime(trackerState[activeDay].myobraceSecondsLeft);
+                        } else {
+                            // Timer completed!
+                            trackerState[activeDay].myobraceRunning = false;
+                            trackerState[activeDay].myobrace = true;
+                            clearInterval(globalTimerInterval);
+                            globalTimerInterval = null;
+                            saveState();
+                            renderTabs();
+                            renderDayContent();
+                            showModal("Myobrace Completed! 🎉", "Fantastic job! Your 2 hours of Myobrace wear time is fully complete.", true);
+                        }
+                    }, 1000);
+                }
+            } else {
+                if (globalTimerInterval) {
+                    clearInterval(globalTimerInterval);
+                    globalTimerInterval = null;
+                }
+            }
+        }
+
+        function startMyobraceTimer() {
+            const dayData = trackerState[activeDay];
+            if (dayData.myobrace) return; // already done
+            if (!dayData.myobraceRunning) {
+                dayData.myobraceRunning = true;
+                saveState();
+                renderDayContent();
+            }
+        }
+
+        function stopMyobraceTimer() {
+            const dayData = trackerState[activeDay];
+            if (dayData.myobraceRunning) {
+                dayData.myobraceRunning = false;
+                if (globalTimerInterval) {
+                    clearInterval(globalTimerInterval);
+                    globalTimerInterval = null;
+                }
+                saveState();
+                renderDayContent();
+            }
+        }
+
+        function lapMyobraceTimer() {
+            const dayData = trackerState[activeDay];
+            const elapsed = MYOBRACE_DURATION - dayData.myobraceSecondsLeft;
+            dayData.myobraceLaps.push(elapsed);
+            saveState();
+            renderDayContent();
+        }
+
+        function cancelMyobraceTimer() {
+            stopMyobraceTimer();
+            const dayData = trackerState[activeDay];
+            dayData.myobraceSecondsLeft = MYOBRACE_DURATION;
+            dayData.myobraceLaps = [];
+            dayData.myobrace = false;
+            saveState();
+            renderDayContent();
+            renderTabs();
+        }
+
+        function toggleMyobraceManual() {
+            const dayData = trackerState[activeDay];
+            dayData.myobrace = !dayData.myobrace;
+            if (dayData.myobrace) {
+                stopMyobraceTimer();
+                dayData.myobraceSecondsLeft = 0;
+            } else {
+                dayData.myobraceSecondsLeft = MYOBRACE_DURATION;
+            }
+            saveState();
+            checkDayCompletionMilestone();
+            renderTabs();
+            renderDayContent();
+        }
+
         function toggleTask(taskKey) {
             trackerState[activeDay][taskKey] = !trackerState[activeDay][taskKey];
             saveState();
+            checkDayCompletionMilestone();
             renderTabs();
             renderDayContent();
         }
 
-        // Toggle piano piece checkboxes
+        function toggleSubTask(taskKey) {
+            trackerState[activeDay][taskKey] = !trackerState[activeDay][taskKey];
+            saveState();
+            checkDayCompletionMilestone();
+            renderTabs();
+            renderDayContent();
+        }
+
         function togglePiano(index) {
             trackerState[activeDay].piano[index] = !trackerState[activeDay].piano[index];
             saveState();
+            checkDayCompletionMilestone();
             renderTabs();
             renderDayContent();
         }
 
-        // Initial setup on window load
+        function checkDayCompletionMilestone() {
+            const stats = getDayCompletion(activeDay);
+            if (stats.percentage === 100) {
+                const randomQuote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+                showModal(`Day ${activeDay} Complete! 🌟`, randomQuote, true);
+            }
+        }
+
         window.onload = function() {
             renderTabs();
             renderDayContent();
