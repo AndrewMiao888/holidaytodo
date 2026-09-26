@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>10-Day Holiday Habit Tracker</title>
+    <title>16-Day Holiday Habit Tracker</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
@@ -36,11 +36,11 @@
         <header class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/40 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6 transition-colors duration-500">
             <div>
                 <div class="flex items-center gap-2 mb-2">
-                    <span class="bg-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Holiday Challenge</span>
+                    <span class="bg-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">16-Day Challenge</span>
                     <span id="theme-badge" class="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-semibold px-2.5 py-0.5 rounded-full">Day Mode</span>
                 </div>
-                <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">10-Day Holiday Habit Tracker</h1>
-                <p class="text-slate-600 dark:text-slate-400 text-sm mt-1">Bright, clean, & automatically saved to your device. No dates, just pure progress!</p>
+                <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">16-Day Holiday Habit Tracker</h1>
+                <p class="text-slate-600 dark:text-slate-400 text-sm mt-1">Sept 27 – Oct 12, 2026. Real dates, smart weekend rules, & automatic save!</p>
             </div>
             <div class="flex items-center gap-4 bg-slate-100 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 w-full md:w-auto justify-around">
                 <div class="text-center px-3">
@@ -49,7 +49,7 @@
                 </div>
                 <div class="h-8 w-px bg-slate-300 dark:bg-slate-700"></div>
                 <div class="text-center px-3">
-                    <span id="days-completed" class="text-2xl font-extrabold text-purple-600 dark:text-purple-400">0/10</span>
+                    <span id="days-completed" class="text-2xl font-extrabold text-purple-600 dark:text-purple-400">0/16</span>
                     <span class="block text-xs font-bold text-slate-500 uppercase">Days Done</span>
                 </div>
                 <button onclick="resetAllData()" class="ml-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl transition shadow-md shadow-rose-500/20 cursor-pointer">
@@ -80,9 +80,27 @@
     </div>
 
     <script>
-        const TOTAL_DAYS = 10;
+        const TOTAL_DAYS = 16;
         let activeDay = 1;
         const MYOBRACE_DURATION = 2 * 60 * 60; // 2 hours in seconds
+
+        // Generate dates from Sept 27, 2026 to Oct 12, 2026
+        const startDate = new Date(2026, 8, 27); // Month 8 is September
+        const calendarDays = [];
+        for (let i = 0; i < TOTAL_DAYS; i++) {
+            const d = new Date(startDate);
+            d.setDate(startDate.getDate() + i);
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+            const dateNum = d.getDate();
+            const isWeekend = (d.getDay() === 0 || d.getDay() === 6); // Sunday = 0, Saturday = 6
+            calendarDays.push({
+                dayNum: i + 1,
+                dateObj: d,
+                label: `${dayName}, ${monthName} ${dateNum}`,
+                isWeekend: isWeekend
+            });
+        }
 
         const motivationalQuotes = [
             "Awesome job! Consistency is the magic key to success! ✨",
@@ -111,7 +129,7 @@
         }
 
         function loadState() {
-            const saved = localStorage.getItem('holiday_habit_tracker_v3');
+            const saved = localStorage.getItem('holiday_habit_tracker_v4');
             if (saved) {
                 try {
                     return JSON.parse(saved);
@@ -150,7 +168,7 @@
         let globalTimerInterval = null;
 
         function saveState() {
-            localStorage.setItem('holiday_habit_tracker_v3', JSON.stringify(trackerState));
+            localStorage.setItem('holiday_habit_tracker_v4', JSON.stringify(trackerState));
             updateOverallStats();
         }
 
@@ -193,9 +211,9 @@
         }
 
         function resetAllData() {
-            if (confirm("Are you sure you want to reset all progress across all 10 days?")) {
+            if (confirm("Are you sure you want to reset all progress across all 16 days?")) {
                 stopMyobraceTimer();
-                localStorage.removeItem('holiday_habit_tracker_v3');
+                localStorage.removeItem('holiday_habit_tracker_v4');
                 trackerState = loadState();
                 renderTabs();
                 renderDayContent();
@@ -205,28 +223,36 @@
         }
 
         function getDayCompletion(dayNum) {
-            const day = trackerState[dayNum];
+            const dayData = trackerState[dayNum];
+            const calInfo = calendarDays[dayNum - 1];
+            
+            // On weekends, exam questions are optional/excluded from total calculation
+            const includeExams = !calInfo.isWeekend;
+            
             let completed = 0;
-            let total = 19; // 1(myo) + 2(exam) + 1(bend) + 1(jump) + 4(piano) + 1(flute) + 1(run) + 2(shine) + 2(vitamins) + 2(teeth) + 2(probiotic) = 19 items
+            let total = includeExams ? 19 : 17; // 19 on weekdays, 17 on weekends
 
-            if (day.myobrace) completed++;
-            if (day.exam1) completed++;
-            if (day.exam2) completed++;
-            if (day.bendDown) completed++;
-            if (day.jumpUp) completed++;
-            day.piano.forEach(p => { if (p) completed++; });
-            if (day.flute) completed++;
-            if (day.run) completed++;
-            if (day.shineEyes1) completed++;
-            if (day.shineEyes2) completed++;
-            if (day.vitamin1) completed++;
-            if (day.vitamin2) completed++;
-            if (day.brushTeeth1) completed++;
-            if (day.brushTeeth2) completed++;
-            if (day.probiotic1) completed++;
-            if (day.probiotic2) completed++;
+            if (dayData.myobrace) completed++;
+            if (includeExams) {
+                if (dayData.exam1) completed++;
+                if (dayData.exam2) completed++;
+            }
+            if (dayData.bendDown) completed++;
+            if (dayData.jumpUp) completed++;
+            dayData.piano.forEach(p => { if (p) completed++; });
+            if (dayData.flute) completed++;
+            if (dayData.run) completed++;
+            if (dayData.shineEyes1) completed++;
+            if (dayData.shineEyes2) completed++;
+            if (dayData.vitamin1) completed++;
+            if (dayData.vitamin2) completed++;
+            if (dayData.brushTeeth1) completed++;
+            if (dayData.brushTeeth2) completed++;
+            if (dayData.probiotic1) completed++;
+            if (dayData.probiotic2) completed++;
 
-            return { completed, total, percentage: Math.round((completed / total) * 100) };
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 100;
+            return { completed, total, percentage };
         }
 
         function updateOverallStats() {
@@ -241,7 +267,7 @@
                 if (stats.percentage === 100) fullyCompletedDays++;
             }
 
-            const overallPct = Math.round((totalCompletedAll / totalPossibleAll) * 100) || 0;
+            const overallPct = totalPossibleAll > 0 ? Math.round((totalCompletedAll / totalPossibleAll) * 100) : 0;
             document.getElementById('overall-percentage').innerText = overallPct + '%';
             document.getElementById('days-completed').innerText = fullyCompletedDays + '/' + TOTAL_DAYS;
         }
@@ -250,13 +276,14 @@
             const tabsContainer = document.getElementById('day-tabs');
             tabsContainer.innerHTML = '';
 
-            for (let i = 1; i <= TOTAL_DAYS; i++) {
+            calendarDays.forEach((cal) => {
+                const i = cal.dayNum;
                 const stats = getDayCompletion(i);
                 const isActive = activeDay === i;
                 const isComplete = stats.percentage === 100;
 
                 const tab = document.createElement('button');
-                tab.className = `flex-shrink-0 px-5 py-3 rounded-2xl font-bold text-sm transition flex flex-col items-center gap-1 border cursor-pointer ${
+                tab.className = `flex-shrink-0 px-4 py-3 rounded-2xl font-bold text-sm transition flex flex-col items-center gap-1 border cursor-pointer ${
                     isActive 
                         ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white border-transparent shadow-lg shadow-purple-500/30 scale-105' 
                         : isComplete 
@@ -265,11 +292,11 @@
                 }`;
                 
                 tab.innerHTML = `
-                    <div class="flex items-center gap-1.5">
-                        <span>Day ${i}</span>
+                    <div class="flex items-center gap-1.5 whitespace-nowrap">
+                        <span>Day ${i} <span class="text-xs opacity-75">(${cal.label})</span></span>
                         ${isComplete ? '<span class="text-xs">✓</span>' : ''}
                     </div>
-                    <div class="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                    <div class="w-16 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
                         <div class="bg-current h-full rounded-full transition-all" style="width: ${stats.percentage}%"></div>
                     </div>
                 `;
@@ -283,7 +310,7 @@
                     }
                 };
                 tabsContainer.appendChild(tab);
-            }
+            });
         }
 
         function formatTime(seconds) {
@@ -296,13 +323,15 @@
         function renderDayContent() {
             const card = document.getElementById('day-content-card');
             const dayData = trackerState[activeDay];
+            const calInfo = calendarDays[activeDay - 1];
             const stats = getDayCompletion(activeDay);
 
             card.innerHTML = `
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-slate-200 dark:border-slate-800">
                     <div>
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">Day ${activeDay} Routine</h2>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">Day ${activeDay} (${calInfo.label})</h2>
+                            ${calInfo.isWeekend ? '<span class="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-xs font-bold px-3 py-1 rounded-full">Weekend Routine</span>' : ''}
                             ${stats.percentage === 100 ? '<span class="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-3 py-1 rounded-full">Day Completed! 🎉</span>' : ''}
                         </div>
                         <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Check off tasks as you complete them today. Your progress updates instantly.</p>
@@ -364,7 +393,8 @@
                         </div>
                     </div>
 
-                    <!-- Exam Questions Session 1 -->
+                    <!-- Exam Questions Session 1 (Weekdays only) -->
+                    ${!calInfo.isWeekend ? `
                     <label class="flex items-center gap-4 p-5 rounded-2xl border ${dayData.exam1 ? 'bg-pink-50/60 dark:bg-pink-950/30 border-pink-300 dark:border-pink-900' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-pink-300'} transition cursor-pointer shadow-sm">
                         <input type="checkbox" ${dayData.exam1 ? 'checked' : ''} onchange="toggleTask('exam1')" class="w-5 h-5 text-pink-600 rounded focus:ring-pink-500 cursor-pointer flex-shrink-0">
                         <div class="flex-1">
@@ -374,7 +404,6 @@
                         <span class="text-xs font-bold px-3 py-1.5 bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl h-fit">Study</span>
                     </label>
 
-                    <!-- Exam Questions Session 2 -->
                     <label class="flex items-center gap-4 p-5 rounded-2xl border ${dayData.exam2 ? 'bg-pink-50/60 dark:bg-pink-950/30 border-pink-300 dark:border-pink-900' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-pink-300'} transition cursor-pointer shadow-sm">
                         <input type="checkbox" ${dayData.exam2 ? 'checked' : ''} onchange="toggleTask('exam2')" class="w-5 h-5 text-pink-600 rounded focus:ring-pink-500 cursor-pointer flex-shrink-0">
                         <div class="flex-1">
@@ -383,6 +412,18 @@
                         </div>
                         <span class="text-xs font-bold px-3 py-1.5 bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl h-fit">Study</span>
                     </label>
+                    ` : `
+                    <div class="md:col-span-2 p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl">🌴</span>
+                            <div>
+                                <span class="font-bold text-slate-900 dark:text-white block text-sm">Weekend Rest from Exam Questions</span>
+                                <span class="text-xs text-slate-500 dark:text-slate-400 block">Enjoy your weekend break! Exam questions are excluded for today.</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold px-3 py-1 bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-xl">Weekend</span>
+                    </div>
+                    `}
 
                     <!-- Exercise Bend Down -->
                     <label class="flex items-center gap-4 p-5 rounded-2xl border ${dayData.bendDown ? 'bg-pink-50/60 dark:bg-pink-950/30 border-pink-300 dark:border-pink-900' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-pink-300'} transition cursor-pointer shadow-sm">
