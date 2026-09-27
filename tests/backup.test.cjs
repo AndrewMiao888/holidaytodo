@@ -1,266 +1,287 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
+let Model, Backup;
 
-const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-// Select the app script explicitly: the first inline script configures Tailwind.
-const mainScript = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
-    .map(match => match[1])
-    .find(source => /\bconst TOTAL_DAYS\b/.test(source));
-assert.ok(mainScript, 'The tracker application script must be present.');
-const backupScript = fs.readFileSync(path.join(root, 'tracker-backup.js'), 'utf8');
-const STATE_KEY = 'holiday_habit_tracker_v4';
-const BACKGROUND_KEY = 'holiday_habit_tracker_background';
-const FOCUS_KEY = 'holiday_habit_tracker_focus';
+test.before(async () => {
+    Model = (await import('../shared/tracker-model.mjs')).default;
+    Backup = await import('../shared/tracker-backup.mjs');
+});
 
-function createApp() {
-    const clock = { now: Date.parse('2026-09-27T00:00:00Z') };
-    class TestDate extends Date {
-        constructor(...args) { super(...(args.length ? args : [clock.now])); }
-        static now() { return clock.now; }
-    }
-    const status = { textContent: '', dataset: {} };
-    const storage = new Map([[BACKGROUND_KEY, 'auto'], [FOCUS_KEY, 'true']]);
-    const calls = { confirmations: 0, renders: 0, downloads: 0, revoked: 0 };
-    const context = {
-        Date: TestDate,
-        Blob,
-        setTimeout: callback => callback(),
-        confirm: () => { calls.confirmations++; return true; },
-        document: {
-            addEventListener() {},
-            getElementById: () => status,
-            body: { appendChild() {} },
-            createElement: () => ({ click: () => calls.downloads++, remove() {} })
-        },
-        window: { addEventListener() {} },
-        URL: {
-            createObjectURL: blob => { calls.downloadedBlob = blob; return 'blob:test'; },
-            revokeObjectURL: () => calls.revoked++
-        },
-        localStorage: {
-            getItem: key => storage.get(key) ?? null,
-            setItem: (key, value) => storage.set(key, value),
-            removeItem: key => storage.delete(key)
-        }
-    };
-    vm.createContext(context);
-    vm.runInContext(mainScript, context, { filename: 'index.html' });
-    vm.runInContext(backupScript, context, { filename: 'tracker-backup.js' });
+const NOW = Date.UTC(2026, 8, 27, 12);
 
-    // Exercise real tracker data/loading/saving; rendering is covered separately.
-    for (const name of ['applyTimeTheme', 'renderBackgroundOptions', 'renderTabs', 'renderDayContent', 'updateOverallStats']) {
-        context[name] = () => calls.renders++;
-    }
-    context.saveState();
-    calls.renders = 0;
-    const read = expression => JSON.parse(vm.runInContext(`JSON.stringify(${expression})`, context));
-    const payload = () => ({
-        format: 'holiday-habit-tracker',
-        version: 1,
-        exportedAt: new Date(clock.now).toISOString(),
-        days: read('trackerState'),
-        background: read('backgroundGradients[0].id')
+function fixture() {
+    const data = Model.createDefaultData(new Date(2026, 8, 27, 12));
+    data.challenge = { name: 'My custom music routine', startDate: '2027-01-01', days: 90 };
+    data.preferences = { background: 'custom', customColors: ['#123456', '#aBcDeF', '#101010'],
+        gradientAngle: 215, mode: 'dark', accent: '#FFA500', font: 'serif', compact: true,
+        animations: false, celebrations: false, focus: true };
+    const habit = Object.assign(Model.createHabit('checklist'), {
+        id: 'custom_music', name: 'Music & expression', category: 'Creative time', icon: '🎵',
+        description: 'Play slowly, then repeat.', color: '#a855f7',
+        messages: ['{habit}: {item} complete!', 'Your {target} {unit} goal is complete.'],
+        items: [{ id: 'first', label: 'A chosen scale' }, { id: 'second', label: 'A new piece' }],
+        weekdays: [1, 3, 5], target: 1, unit: ''
     });
-    return { context, clock, status, storage, calls, read, payload };
+    data.habits.push(habit);
+    const progress = Model.record(data, '2026-09-27', habit);
+    progress.items.first = true;
+    progress.items.retired_item = true;
+    return data;
 }
 
-function fileInput(payload) {
-    const contents = typeof payload === 'string' ? payload : JSON.stringify(payload);
+function oldDay() {
     return {
-        value: 'selected-backup.json',
-        files: [{ size: Buffer.byteLength(contents), text: async () => contents }]
+        myobrace: false, myobraceSecondsLeft: 7200, myobraceRunning: false, myobraceEndsAt: null, myobraceLaps: [],
+        exam1: false, exam2: true, bendDown: true, jumpUp: false, run: true,
+        flute: [true, false, true, false, true], piano: [false, true, false, true],
+        shineEyes1: true, shineEyes2: false, vitamin1: false, vitamin2: true,
+        brushTeeth1: true, brushTeeth2: false, probiotic1: false, probiotic2: true
     };
 }
 
-test('the integrated app exports only challenge data and can restore that download', async () => {
-    const app = createApp();
-    vm.runInContext('trackerState[2].flute[4] = true; trackerState[3].piano[1] = true;', app.context);
-    app.context.downloadBackup();
-    const exported = JSON.parse(await app.calls.downloadedBlob.text());
-    assert.equal(app.calls.downloads, 1);
-    assert.equal(app.calls.revoked, 1);
-    assert.equal(Object.keys(exported.days).length, 16);
-    assert.deepEqual(Object.keys(exported).sort(), ['background', 'days', 'exportedAt', 'format', 'version']);
-    assert.equal(exported.days[2].flute[4], true);
+function legacy() {
+    return Object.fromEntries(Array.from({ length: 16 }, (_, index) => [index + 1, oldDay()]));
+}
 
-    vm.runInContext('trackerState[2].flute[4] = false; trackerState[3].piano[1] = false;', app.context);
-    const input = fileInput(exported);
-    await app.context.restoreBackup(input);
-    assert.equal(app.read('trackerState[2].flute[4]'), true);
-    assert.equal(app.read('trackerState[3].piano[1]'), true);
-    assert.deepEqual(JSON.parse(app.storage.get(STATE_KEY)), exported.days);
-    assert.equal(app.calls.confirmations, 1);
-    assert.equal(app.calls.renders, 5);
-    assert.equal(input.value, '');
-    assert.equal(app.storage.get(FOCUS_KEY), 'true');
-    assert.equal(app.read('focusOnly'), true);
-    assert.match(app.status.textContent, /Backup restored/);
+function legacyBackup() {
+    return { format: 'holiday-habit-tracker', version: 1, exportedAt: new Date(NOW).toISOString(), days: legacy(), background: 'peach-sky' };
+}
+
+function addTimer(data, key = '2026-09-27') {
+    const habit = Object.assign(Model.createHabit('timer'), { id: 'custom_timer', target: 120 });
+    data.habits.push(habit);
+    const entry = Model.record(data, key, habit);
+    entry.timer.running = true;
+    entry.timer.endsAt = NOW + 120_000;
+    entry.timer.laps = [20, 40];
+    return { habit, entry };
+}
+
+test('version2 backups include the complete custom schema, preferences and historical progress', () => {
+    const data = fixture();
+    const backup = Backup.createBackup(data, NOW);
+    assert.equal(backup.format, 'holiday-habit-tracker');
+    assert.equal(backup.version, 2);
+    assert.equal(backup.exportedAt, new Date(NOW).toISOString());
+    assert.deepEqual(backup.data, data);
+    const restored = Backup.parseBackup(JSON.parse(JSON.stringify(backup)), NOW);
+    assert.deepEqual(restored, data);
+    assert.equal(restored.progress['2026-09-27'].custom_music.items.retired_item, true);
+    assert.equal(restored.challenge.days, 90);
+    assert.equal(restored.preferences.gradientAngle, 215);
+    assert.equal(restored.habits[0].messages[0], '{habit}: {item} complete!');
 });
 
-test('restore persists and applies the selected background', async () => {
-    const app = createApp();
-    const backup = app.payload();
-    await app.context.restoreBackup(fileInput(backup));
-    assert.equal(app.read('selectedBackground'), backup.background);
-    assert.equal(app.storage.get(BACKGROUND_KEY), backup.background);
+test('export validation and timer synchronization use a clone and never change the live data', () => {
+    const data = fixture();
+    const { entry } = addTimer(data);
+    const before = JSON.stringify(data);
+    const backup = Backup.createBackup(data, NOW + 180_000);
+    assert.equal(JSON.stringify(data), before);
+    assert.equal(entry.timer.running, true);
+    assert.equal(entry.done, false);
+    const saved = backup.data.progress['2026-09-27'].custom_timer;
+    assert.equal(saved.timer.running, false);
+    assert.equal(saved.timer.endsAt, null);
+    assert.equal(saved.timer.remaining, 0);
+    assert.equal(saved.done, true);
+    backup.data.habits[0].items[0].label = 'Changed';
+    assert.equal(data.habits[0].items[0].label, 'A chosen scale');
 });
 
-test('malformed backup fields are rejected before confirmation without replacing progress', async t => {
-    const invalid = [
-        ['missing day', data => delete data.days[16]],
-        ['extra day', data => { data.days[17] = {}; }],
-        ['nonboolean task', data => { data.days[1].run = 'true'; }],
-        ['wrong flute count', data => { data.days[1].flute = [true]; }],
-        ['nonboolean piano entry', data => { data.days[1].piano[1] = 1; }],
-        ['negative timer', data => { data.days[1].myobraceSecondsLeft = -1; }],
-        ['timer over two hours', data => { data.days[1].myobraceSecondsLeft = 7201; }],
-        ['fractional timer', data => { data.days[1].myobraceSecondsLeft = 1.5; }],
-        ['negative lap', data => { data.days[1].myobraceLaps = [-1]; }],
-        ['oversized lap', data => { data.days[1].myobraceLaps = [7201]; }],
-        ['nonboolean running flag', data => { data.days[1].myobraceRunning = 1; }],
-        ['deadline on stopped timer', data => { data.days[1].myobraceEndsAt = Date.parse(data.exportedAt); }],
-        ['nonnumeric deadline', data => { data.days[1].myobraceRunning = true; data.days[1].myobraceEndsAt = 'tomorrow'; }],
-        ['deadline too far ahead', data => { data.days[1].myobraceRunning = true; data.days[1].myobraceEndsAt = Date.parse(data.exportedAt) + 86400000; }],
-        ['completed timer with time remaining', data => { data.days[1].myobrace = true; }],
-        ['unknown gradient', data => { data.background = 'unknown'; }],
-        ['unsupported version', data => { data.version = 2; }],
-        ['invalid export date', data => { data.exportedAt = 'invalid'; }],
-        ['future export date', data => { data.exportedAt = '2026-09-28T00:00:00Z'; }]
-    ];
-    for (const [name, change] of invalid) {
-        await t.test(name, async () => {
-            const app = createApp();
-            const backup = app.payload();
-            const before = app.read('trackerState');
-            const saved = app.storage.get(STATE_KEY);
-            change(backup);
-            await app.context.restoreBackup(fileInput(backup));
-            assert.equal(app.calls.confirmations, 0);
-            assert.deepEqual(app.read('trackerState'), before);
-            assert.equal(app.storage.get(STATE_KEY), saved);
-            assert.equal(app.status.dataset.error, 'true');
-        });
+test('import synchronizes running timers after time away without restarting their deadlines', () => {
+    const data = fixture();
+    addTimer(data);
+    const backup = Backup.createBackup(data, NOW);
+    const before = JSON.stringify(backup);
+    const restored = Backup.parseBackup(backup, NOW + 50_001);
+    const timer = restored.progress['2026-09-27'].custom_timer.timer;
+    assert.equal(timer.remaining, 70);
+    assert.equal(timer.endsAt, NOW + 120_000);
+    assert.equal(timer.running, true);
+    assert.deepEqual(timer.laps, [20, 40]);
+    assert.equal(JSON.stringify(backup), before);
+    const expired = Backup.parseBackup(backup, NOW + 300_000);
+    assert.equal(expired.progress['2026-09-27'].custom_timer.done, true);
+});
+
+test('export and import include archived running timers on dates outside the configured challenge', () => {
+    const data = fixture();
+    const { habit } = addTimer(data, '2024-01-01');
+    habit.archived = true;
+    habit.weekdays = [];
+    const backup = Backup.createBackup(data, NOW + 10_000);
+    assert.equal(backup.data.habits[1].archived, true);
+    assert.equal(backup.data.progress['2024-01-01'].custom_timer.timer.remaining, 110);
+    const restored = Backup.parseBackup(backup, NOW + 500_000);
+    assert.equal(restored.progress['2024-01-01'].custom_timer.done, true);
+    assert.equal(restored.habits[1].archived, true);
+});
+
+test('normalization strips unknown fields but preserves user text as data', () => {
+    const data = fixture();
+    data.habits[0].name = '<img src=x onerror=alert(1)>';
+    data.extra = 'not in the format';
+    data.preferences.onclick = 'bad()';
+    const backup = Backup.createBackup(data, NOW);
+    assert.equal(backup.data.extra, undefined);
+    assert.equal(backup.data.preferences.onclick, undefined);
+    backup.data.habits[0].onclick = 'bad()';
+    backup.unknownMetadata = true;
+    const restored = Backup.parseBackup(backup, NOW);
+    assert.equal(restored.habits[0].onclick, undefined);
+    assert.equal(restored.unknownMetadata, undefined);
+    assert.equal(restored.habits[0].name, '<img src=x onerror=alert(1)>');
+});
+
+test('version1 imports preserve every old task, background, original calendar and paired routines', () => {
+    const payload = legacyBackup();
+    const before = JSON.stringify(payload);
+    const restored = Backup.parseBackup(payload, NOW);
+    assert.equal(restored.version, 5);
+    assert.deepEqual(restored.challenge, { name: '16-Day Holiday Habit Tracker', startDate: '2026-09-27', days: 16 });
+    assert.equal(restored.preferences.background, 'peach-sky');
+    assert.equal(Object.keys(restored.progress).length, 16);
+    const day = restored.progress['2026-09-27'];
+    assert.equal(day.bendDown.count, 20);
+    assert.equal(day.bendDown.done, true);
+    assert.equal(restored.habits.find(habit => habit.id === 'bendDown').type, 'check');
+    assert.equal(day.run.count, 1);
+    assert.deepEqual(Object.values(day.flute.items), payload.days[1].flute);
+    assert.deepEqual(Object.values(day.piano.items), payload.days[1].piano);
+    assert.deepEqual(day.exam.items, { session1: false, session2: true });
+    assert.deepEqual(day.brushTeeth.items, { morning: true, evening: false });
+    assert.equal(Model.getDayStats(restored, '2026-09-27').total, 21);
+    assert.equal(Model.getDayStats(restored, '2026-09-28').total, 23);
+    assert.equal(JSON.stringify(payload), before);
+});
+
+test('legacy timers with no deadline account for all elapsed time since the export timestamp', () => {
+    const payload = legacyBackup();
+    payload.days[1].myobraceRunning = true;
+    payload.days[1].myobraceSecondsLeft = 600;
+    payload.days[1].myobraceLaps = [60, 180];
+    delete payload.days[1].myobraceEndsAt;
+    const restored = Backup.parseBackup(payload, NOW + 240_000);
+    const timer = restored.progress['2026-09-27'].myobrace.timer;
+    assert.equal(timer.endsAt, NOW + 600_000);
+    assert.equal(timer.remaining, 360);
+    assert.deepEqual(timer.laps, [60, 180]);
+    assert.equal(timer.running, true);
+    const expired = Backup.parseBackup(payload, NOW + 900_000);
+    assert.equal(expired.progress['2026-09-27'].myobrace.done, true);
+    assert.equal(expired.progress['2026-09-27'].myobrace.timer.endsAt, null);
+});
+
+test('legacy explicit deadlines are preserved even if stored remaining seconds are stale', () => {
+    const payload = legacyBackup();
+    payload.days[1].myobraceRunning = true;
+    payload.days[1].myobraceSecondsLeft = 7000;
+    payload.days[1].myobraceEndsAt = NOW + 300_000;
+    const restored = Backup.parseBackup(payload, NOW + 120_000);
+    assert.equal(restored.progress['2026-09-27'].myobrace.timer.remaining, 180);
+    assert.equal(restored.progress['2026-09-27'].myobrace.timer.endsAt, NOW + 300_000);
+});
+
+test('raw legacy progress uses the supplied background and a current deadline reference', () => {
+    const payload = legacy();
+    payload[1].myobraceRunning = true;
+    payload[1].myobraceSecondsLeft = 100;
+    payload[1].myobraceEndsAt = null;
+    payload[2].flute = true;
+    const restored = Backup.parseBackup(payload, NOW, 'rosewater');
+    assert.equal(restored.preferences.background, 'rosewater');
+    assert.equal(restored.progress['2026-09-27'].myobrace.timer.endsAt, NOW + 100_000);
+    assert.deepEqual(Object.values(restored.progress['2026-09-28'].flute.items), Array(5).fill(true));
+    assert.equal(Backup.parseBackup(legacy(), NOW).preferences.background, 'auto');
+});
+
+test('partial legacy backup days and day arrays are rejected', () => {
+    for (const enveloped of [false, true]) {
+        for (const mutate of [
+            days => { delete days[16]; },
+            days => { days[17] = oldDay(); },
+            days => { days[1] = []; },
+            days => { days[1] = null; },
+            days => { days.extra = oldDay(); }
+        ]) {
+            const days = legacy();
+            mutate(days);
+            const payload = enveloped ? { ...legacyBackup(), days } : days;
+            assert.throws(() => Backup.parseBackup(payload, NOW));
+        }
+    }
+    assert.throws(() => Backup.parseBackup(Object.values(legacy()), NOW));
+    assert.throws(() => Backup.parseBackup({ ...legacyBackup(), days: Object.values(legacy()) }, NOW));
+    assert.throws(() => Backup.parseBackup({}, NOW));
+});
+
+test('legacy malformed task values, background fields and conflicting timers are rejected', () => {
+    for (const mutate of [
+        payload => { payload.days[1].exam1 = 'true'; },
+        payload => { payload.days[1].flute = [true]; },
+        payload => { payload.days[1].piano[0] = 1; },
+        payload => { payload.days[1].myobraceSecondsLeft = -1; },
+        payload => { payload.days[1].myobrace = true; },
+        payload => { payload.days[1].myobraceLaps = [8000]; },
+        payload => { payload.days[1].myobraceEndsAt = NOW; },
+        payload => { delete payload.background; },
+        payload => { payload.background = 1; },
+        payload => { payload.background = 'url(javascript:bad)'; }
+    ]) {
+        const payload = legacyBackup();
+        mutate(payload);
+        assert.throws(() => Backup.parseBackup(payload, NOW));
     }
 });
 
-test('invalid JSON and unrelated JSON do not replace progress', async t => {
-    for (const contents of ['{', 'null', '[]', '{}']) {
-        await t.test(contents, async () => {
-            const app = createApp();
-            await app.context.restoreBackup(fileInput(contents));
-            assert.equal(app.calls.confirmations, 0);
-            assert.equal(app.calls.renders, 0);
-            assert.equal(app.status.dataset.error, 'true');
-        });
+test('unsupported formats, versions and malformed top-level values are rejected', () => {
+    for (const payload of [null, [], 'json text', 5, true,
+        { format: 'another-app', version: 2 }, { format: 'holiday-habit-tracker', version: 3 },
+        { format: 'holiday-habit-tracker', version: '2' }, { format: 'holiday-habit-tracker' },
+        { format: undefined, ...legacy() }, Object.create({ format: 'holiday-habit-tracker' })]) {
+        assert.throws(() => Backup.parseBackup(payload, NOW));
+    }
+    assert.throws(() => Backup.parseBackup(fixture(), NOW), 'raw v5 data is not an exported backup envelope');
+});
+
+test('both backup versions require a sane export timestamp and reject impossible dates', () => {
+    const invalidDates = [undefined, null, NOW, '', 'yesterday', '2026-09-27',
+        '2026-02-30T12:00:00.000Z', '2026-09-27T24:00:00.000Z',
+        '2026-09-27T12:60:00Z', '1969-12-31T23:59:59.999Z',
+        new Date(NOW + 60001).toISOString()];
+    for (const source of [legacyBackup(), Backup.createBackup(fixture(), NOW)]) {
+        for (const exportedAt of invalidDates) assert.throws(() => Backup.parseBackup({ ...source, exportedAt }, NOW));
+        assert.equal(Backup.parseBackup({ ...source, exportedAt: new Date(NOW + 60000).toISOString() }, NOW).version, 5);
+        assert.equal(Backup.parseBackup({ ...source, exportedAt: '2026-09-27T12:00:00Z' }, NOW).version, 5);
+        assert.equal(Backup.parseBackup({ ...source, exportedAt: '2026-09-27T13:00:00+01:00' }, NOW).version, 5);
     }
 });
 
-test('oversized files are rejected without reading their contents', async () => {
-    const app = createApp();
-    let read = false;
-    await app.context.restoreBackup({
-        value: 'oversized.json',
-        files: [{ size: 1048577, text: async () => { read = true; return '{}'; } }]
-    });
-    assert.equal(read, false);
-    assert.equal(app.calls.confirmations, 0);
-    assert.equal(app.status.dataset.error, 'true');
-});
-
-test('cancelling a valid restore leaves stored progress and preferences unchanged', async () => {
-    const app = createApp();
-    app.context.confirm = () => { app.calls.confirmations++; return false; };
-    const before = [...app.storage];
-    await app.context.restoreBackup(fileInput(app.payload()));
-    assert.equal(app.calls.confirmations, 1);
-    assert.deepEqual([...app.storage], before);
-    assert.equal(app.calls.renders, 0);
-    assert.match(app.status.textContent, /cancelled/);
-});
-
-test('legacy flute and running timers migrate using the backup date', async () => {
-    const app = createApp();
-    const backup = app.payload();
-    backup.days[1].flute = true;
-    backup.days[1].myobraceRunning = true;
-    backup.days[1].myobraceSecondsLeft = 600;
-    delete backup.days[1].myobraceEndsAt;
-    app.clock.now += 30000;
-    await app.context.restoreBackup(fileInput(backup));
-    assert.deepEqual(app.read('trackerState[1].flute'), [true, true, true, true, true]);
-    assert.equal(app.read('trackerState[1].myobraceEndsAt'), Date.parse(backup.exportedAt) + 600000);
-    assert.equal(app.read('trackerState[1].myobraceSecondsLeft'), 570);
-});
-
-test('legacy raw progress preserves the current background and resumes a timer', async () => {
-    const app = createApp();
-    const days = app.payload().days;
-    days[1].myobraceRunning = true;
-    days[1].myobraceSecondsLeft = 600;
-    delete days[1].myobraceEndsAt;
-    await app.context.restoreBackup(fileInput(days));
-    assert.equal(app.read('selectedBackground'), 'auto');
-    assert.equal(app.read('trackerState[1].myobraceRunning'), true);
-    assert.equal(app.read('trackerState[1].myobraceEndsAt'), app.clock.now + 600000);
-});
-
-test('running deadlines survive restore and time spent in the confirmation dialog', async () => {
-    const app = createApp();
-    const backup = app.payload();
-    backup.days[1].myobraceRunning = true;
-    backup.days[1].myobraceEndsAt = app.clock.now + 300000;
-    app.context.confirm = () => { app.clock.now += 10000; return true; };
-    await app.context.restoreBackup(fileInput(backup));
-    assert.equal(app.read('trackerState[1].myobraceEndsAt'), backup.days[1].myobraceEndsAt);
-    assert.equal(app.read('trackerState[1].myobraceSecondsLeft'), 290);
-});
-
-test('expired timers restore as completed', async () => {
-    const app = createApp();
-    const backup = app.payload();
-    backup.days[1].myobraceRunning = true;
-    backup.days[1].myobraceEndsAt = app.clock.now - 10000;
-    await app.context.restoreBackup(fileInput(backup));
-    const day = app.read('trackerState[1]');
-    assert.equal(day.myobrace, true);
-    assert.equal(day.myobraceSecondsLeft, 0);
-    assert.equal(day.myobraceRunning, false);
-    assert.equal(day.myobraceEndsAt, null);
-});
-
-test('failed storage writes leave the app unchanged and roll back prior writes', async t => {
-    for (const failedKey of [STATE_KEY, BACKGROUND_KEY]) {
-        await t.test(failedKey, async () => {
-            const app = createApp();
-            const before = app.read('trackerState');
-            const saved = [...app.storage];
-            const setItem = app.context.localStorage.setItem;
-            let failed = false;
-            app.context.localStorage.setItem = (key, value) => {
-                if (key === failedKey && !failed) { failed = true; throw new Error('Storage quota exceeded'); }
-                setItem(key, value);
-            };
-            const backup = app.payload();
-            backup.days[1].run = true;
-            await app.context.restoreBackup(fileInput(backup));
-            assert.deepEqual(app.read('trackerState'), before);
-            assert.deepEqual([...app.storage], saved);
-            assert.equal(app.calls.renders, 0);
-            assert.equal(app.status.dataset.error, 'true');
-        });
+test('v2 imports and exports enforce the current schema rather than trusting backup metadata', () => {
+    for (const mutate of [
+        data => { data.version = 4; },
+        data => { data.challenge.days = 0; },
+        data => { data.habits[0].id = '__proto__'; },
+        data => { data.habits[0].items[0].label = 'x'.repeat(101); },
+        data => { data.preferences.accent = 'url(bad)'; },
+        data => { data.progress['2026-09-27'].custom_music.items.first = 'true'; },
+        data => { data.progress['2026-09-27'].custom_music.timer.running = true; }
+    ]) {
+        const data = fixture(); mutate(data);
+        assert.throws(() => Backup.createBackup(data, NOW));
+        assert.throws(() => Backup.parseBackup({ format: Backup.BACKUP_FORMAT, version: 2, exportedAt: new Date(NOW).toISOString(), data }, NOW));
     }
+    assert.throws(() => Backup.parseBackup({ format: Backup.BACKUP_FORMAT, version: 2, exportedAt: new Date(NOW).toISOString() }, NOW));
 });
 
-test('extra data is excluded from restored task records', async () => {
-    const app = createApp();
-    const backup = app.payload();
-    backup.days[1].unexpected = '<script>untrusted()</script>';
-    backup.extra = 'unrelated data';
-    await app.context.restoreBackup(fileInput(backup));
-    assert.equal(Object.hasOwn(app.read('trackerState[1]'), 'unexpected'), false);
-    assert.equal(app.storage.size, 3);
+test('backup helpers reject invalid clocks and have no browser globals or storage side effects', () => {
+    for (const now of [NaN, Infinity, -1, 'today', NOW + 0.5, Number.MAX_SAFE_INTEGER]) {
+        assert.throws(() => Backup.createBackup(fixture(), now));
+        assert.throws(() => Backup.parseBackup(legacyBackup(), now));
+    }
+    assert.equal(Backup.default.createBackup, Backup.createBackup);
+    assert.equal(Backup.default.parseBackup, Backup.parseBackup);
+    assert.equal(globalThis.TrackerBackup, undefined);
+    assert.equal(globalThis.TrackerModel, undefined);
 });

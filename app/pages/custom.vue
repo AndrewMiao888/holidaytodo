@@ -1,0 +1,3 @@
+<template>
+  <TrackerDashboard customizable />
+</template>
