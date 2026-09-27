@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 for the original 16-day holiday routine. `app/app.vue` renders Nuxt pages: `app/pages/index.vue` is the normal tracker, and `app/pages/custom.vue` provides customisation at `/custom`. The routes share `app/components/TrackerDashboard.vue` and the saved tracker state. There are no links or buttons to `/custom` on the normal page; enter that path manually for testing or development. `index.html` is now a small export bridge for old saved progress, not the application entry point.
+Open http://localhost:3000 for the original 16-day holiday routine. `app/app.vue` renders Nuxt pages: `app/pages/index.vue` is the normal tracker, and `app/pages/custom.vue` provides customisation at `/custom`. The routes share `app/components/TrackerDashboard.vue` and the saved tracker state. The main page includes Reset All and the full appearance chooser. There are no links or buttons to `/custom`; enter that path manually for testing or development. `index.html` is now a small export bridge for old saved progress, not the application entry point.
 
 ```sh
 npm test          # model, backups, Vue editor, and controller checks
@@ -24,7 +24,7 @@ Nuxt runs in client-rendered mode because progress belongs in the user's browser
 
 ## Make it yours
 
-Type http://localhost:3000/custom in the address bar to access **Customise routine**, **Appearance**, and backup restore. Editing controls, starter packs, and setup imports are only rendered on that route. Changes are saved to the same tracker and are reflected on `/`.
+Type http://localhost:3000/custom in the address bar to access **Customise routine** and backup restore. **Appearance** is also available directly on the main page. Editing controls, starter packs, and setup imports are only rendered on that route. Changes are saved to the same tracker and are reflected on `/`.
 
 The default is the original September 27 to October 12, 2026 routine: the two-hour Myobrace timer; two weekday exam sessions; bend-down, jump-up, and 1 km run checkboxes; five flute tasks; four piano pieces; and the paired daily routines. It uses the original pastel/time-of-day backgrounds, colourful heading and animated border. The earlier empty generic default upgrades once, preserving appearance and keeping its prior data under `holiday_habit_tracker_v5_before_personal_default`. Existing deliberately customised routines remain saved.
 
@@ -33,12 +33,12 @@ On `/custom`, change the challenge name, start date, and length (1-366 days), or
 - Add simple checkboxes, checklists, number goals (including decimals), and timers.
 - Edit names, icons, categories, notes, card colours, targets, units, checklist steps, and the weekdays each habit appears.
 - Reorder habits and checklist steps, duplicate them, or archive and restore habits. Archived habits and removed checklist steps keep their underlying historical records.
-- Write your own motivational messages with `{habit}`, `{item}`, `{target}`, and `{unit}` placeholders, or use automatic messages. Timer message targets use minutes.
+- Write your own motivational messages with `{habit}`, `{item}`, `{target}`, and `{unit}` placeholders, or use automatic, task-specific congratulations that name the exact completed goal and rotate between messages. Timer message targets use minutes.
 - Save changes explicitly or cancel the editor without changing the live routine. Editing names or order keeps stable task identities. Current progress and appearance are preserved if they change while the editor is open.
 
-On `/custom`, select **Appearance** for 20 preset gradients or a custom three-colour gradient with adjustable direction, accent colour, automatic/light/dark cards, three font choices, compact spacing, animations, and motivational popups. These settings save automatically. Reduced-motion preferences are respected.
+Select **Appearance** or expand **Choose your background** on either page for 20 preset gradients or a custom three-colour gradient with adjustable direction, accent colour, automatic/light/dark cards, three font choices, compact spacing, animations, and motivational popups. These settings save automatically. Reduced-motion preferences are respected.
 
-The dashboard includes a Today shortcut, daily and overall progress, a best completion streak, and focus view for unfinished tasks. Checklist items count individually; number goals and timers count once. Rest days have no required tasks and break the full-day streak.
+The header includes **Reset All**, which confirms before clearing challenge progress and keeps your routine and appearance. The dashboard includes a Today shortcut, daily and overall progress, a best completion streak, and focus view for unfinished tasks. Checklist items count individually; number goals and timers count once. Rest days have no required tasks and break the full-day streak.
 
 ## Progress, timers, and backups
 

@@ -13,7 +13,7 @@ defineExpose({open})
 
 <template>
   <details ref="panel" class="panel">
-    <summary>Make it look like you <span class="muted small">· {{ selected }}</span></summary>
+    <summary>Choose your background <span class="muted small">· {{ selected }}</span></summary>
     <div class="row"><button type="button" class="button small" :aria-pressed="preferences.background==='auto'" @click="set('background','auto')">Follow the time of day</button><span class="small muted">20 gradients, or mix your own below.</span></div>
     <div class="swatches" role="group" aria-label="Background gradients"><button v-for="theme in themes" :key="theme.id" type="button" class="swatch" :aria-pressed="preferences.background===theme.id" @click="set('background',theme.id)"><span class="swatch-preview" :style="{background:`linear-gradient(135deg,${theme.colors.join(',')})`}" aria-hidden="true"></span><span class="swatch-label">{{ theme.name }}{{ preferences.background===theme.id?' ✓':'' }}</span></button></div>
     <div class="fields">

@@ -94,7 +94,7 @@ async function renderRoute(route, state = 'populated') {
 function assertPersonalOnly(html) {
   assert.doesNotMatch(html, /(?:href|to)=["'][^"']*\/custom\b/i, 'main route contains no link to /custom');
   assert.doesNotMatch(html, /Customise routine|Add or edit habits|Add my first habit|Edit schedule|aria-label="Edit\s|Study pack|Movement pack|Music pack/, 'editing controls stay absent');
-  assert.doesNotMatch(html, /Make it look like you|Background gradients|type="(?:color|file)"|id="settings-dialog"/, 'settings, appearance, and import controls are not mounted');
+  assert.doesNotMatch(html, /type="file"|id="settings-dialog"/, 'routine editor and setup import controls are not mounted');
   assert.doesNotMatch(html, /routine editor|starter pack|change the dates in/i, 'copy does not direct users to missing customization controls');
 }
 
@@ -124,7 +124,7 @@ test('personal route keeps the flute checkboxes and enabled timer controls', asy
 
 test('/custom passes its flag through to full configuration controls', async () => {
   const { html } = await renderRoute('custom');
-  for (const text of ['Customise routine', 'Appearance', '+ Add or edit habits', 'Make it look like you', 'Background gradients', 'Restore a backup']) assert.ok(html.includes(text), text);
+  for (const text of ['Customise routine', 'Appearance', '+ Add or edit habits', 'Choose your background', 'Background gradients', 'Restore a backup']) assert.ok(html.includes(text), text);
   assert.match(html, /id="settings-dialog"/);
   assert.match(html, /aria-label="Edit Flute Practice"/);
   assert.match(html, /type="file"/);
@@ -168,4 +168,13 @@ test('app shell renders the Nuxt page outlet', async () => {
   const app = Vue.createSSRApp(component('app/app.vue'));
   app.component('NuxtPage', { render: () => Vue.h('main', { 'data-page-outlet': 'present' }) });
   assert.match(await SSR.renderToString(app), /data-page-outlet="present"/);
+});
+
+
+test('home restores the complete appearance chooser and a visible Reset All button', async () => {
+  const { html } = await renderRoute('index');
+  const header = html.match(/<header[\s\S]*?<\/header>/)[0];
+  assert.match(header, />Reset All<\/button>/);
+  for (const label of ['Choose your background', 'Your own gradient', 'Accent colour', 'Card colours', 'Font', 'Compact layout', 'Animations', 'Motivational popups']) assert.ok(html.includes(label), label);
+  assert.equal((html.match(/class="swatch"/g) || []).length, 20);
 });

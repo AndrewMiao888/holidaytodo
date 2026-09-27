@@ -138,3 +138,19 @@ test('a timer completes after switching dates without resetting its background d
   assert.equal(c.data.value.progress[original].habit.done,true)
   assert.equal(c.data.value.progress[original].habit.timer.running,false)
 })
+
+test('Reset All confirms, clears challenge progress, and keeps the routine and appearance',t=>{
+  const {controller:c,storage}=harness(t,sample())
+  c.action({name:'check',habitId:'habit',value:true})
+  c.updatePreferences({background:'custom',accent:'#123456',compact:true})
+  const before=JSON.parse(JSON.stringify(c.data.value))
+  globalThis.confirm=()=>false
+  c.resetProgress()
+  assert.equal(c.stats.value.completed,1)
+  globalThis.confirm=()=>true
+  c.resetProgress()
+  assert.equal(c.stats.value.completed,0)
+  assert.deepEqual(JSON.parse(JSON.stringify(c.data.value.habits)),before.habits)
+  assert.deepEqual(JSON.parse(JSON.stringify(c.data.value.preferences)),before.preferences)
+  assert.deepEqual(JSON.parse(storage.get(M.STORAGE_KEY)).progress,{})
+})

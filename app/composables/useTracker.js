@@ -2,6 +2,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import M from '../../shared/tracker-model.mjs'
 import themes from '../../shared/tracker-themes.mjs'
 import { createPersonalData, adoptPersonalDefault } from '../../shared/personal-default.mjs'
+import { goalMessagesFor } from '../../shared/goal-messages.mjs'
 
 const clone = value => JSON.parse(JSON.stringify(value))
 const PERSONAL_DEFAULT_KEY = `${M.STORAGE_KEY}_personal_default`
@@ -98,7 +99,7 @@ export function useTracker() {
   function celebrate(habit, itemLabel = '') {
     if (!data.value.preferences.celebrations) return
     const key = habit.id + ':' + itemLabel
-    const messages = habit.messages.length ? habit.messages : ['{habit}{itemSuffix} complete! Well done for following through.', 'Goal reached: {habit}{itemSuffix}. Give yourself credit for the effort.']
+    const messages = goalMessagesFor(habit, itemLabel)
     const available = messages.filter(m => m !== quoteHistory[key])
     const choices = available.length ? available : messages
     const message = choices[Math.floor(Math.random() * choices.length)]
@@ -137,7 +138,7 @@ export function useTracker() {
     if (!ok) return
     const after = M.record(data.value, selectedDate.value, habit)
     if (item && !before.items[itemId] && after.items[itemId]) celebrate(habit, item.label)
-    else if (!item && !isComplete(habit, before) && isComplete(habit, after)) celebrate(habit)
+    else if (!item && !isComplete(habit, before) && isComplete(habit, after)) celebrate(habit.type === 'timer' ? { ...habit, target: after.timer.duration } : habit)
   }
   function tick() {
     const completed = M.syncTimers(data.value)
@@ -145,7 +146,7 @@ export function useTracker() {
     if (!completed.length) return
     try { persist(data.value) } catch (error) { notify('Timer complete, but saving failed: ' + error.message) }
     const visible = completed.find(c => c.dateKey === selectedDate.value && data.value.habits.some(h => h.id === c.habitId && h.type === 'timer' && !h.archived))
-    if (visible) celebrate(data.value.habits.find(h => h.id === visible.habitId))
+    if (visible) celebrate({ ...data.value.habits.find(h => h.id === visible.habitId), target: data.value.progress[visible.dateKey][visible.habitId].timer.duration })
     else notify(`${completed.length} background timer${completed.length === 1 ? '' : 's'} completed.`)
   }
   function resetProgress() {
